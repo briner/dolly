@@ -1,0 +1,40 @@
+#!/bin/bash
+
+(
+date
+
+################
+################
+# DO NOT EDIT THIS
+rm -f /var/tmp/metadata4archive/zpool_status.out
+rm -f /var/tmp/metadata4archive/zpool_list.out
+rm -f /var/tmp/metadata4archive/beadm_list_-d.out
+rm -f /var/tmp/metadata4archive/zfs_get_-rHp_all.out
+rm -f /var/tmp/metadata4archive/zfs_list_-t_filesystem.out
+
+mount -p | \
+  awk '$3 ~ /^\/dolly\/backup/ {
+         fs=substr($3,length("/dolly/backup")+1)
+         if (fs == "")
+           fs="/"
+         printf "exclude.fs %s\n",fs
+       }' \
+  > /opt/tivoli/tsm/client/ba/bin/include_exclude
+
+# UNTIL HERE
+################
+################
+  
+
+
+##
+## edit here
+## 
+
+# start the service (eg:Database or other service)
+
+##
+## until here
+##
+
+) |& sed 's|^|dolly-post |' >> /var/log/dolly_hook  

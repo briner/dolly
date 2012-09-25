@@ -1,0 +1,796 @@
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
+
+# dolly is the new dolly for solaris 11
+
+
+# calzone2
+# rsync -a /home/briner/ws/libcbr_0.2/src/libcbr/ su@calzone2:/usr/local/lib/python/libcbr_0.2/libcbr/ & scp /home/briner/ws/dolly_0.2/src/dolly su@calzone2:/usr/local/bin ; date
+
+# zone-test2
+# rsync -a /home/briner/ws/libcbr_0.2/src/libcbr/ su@zone-test2:/usr/local/lib/python/libcbr_0.2/libcbr/ & scp /home/briner/ws/dolly_0.2/src/dolly su@zone-test2:/usr/local/bin ; date
+#rsync -a /home/briner/ws/libcbr_0.2/src/libcbr/ su@zone-test2:/usr/local/lib/python/libcbr_0.2/libcbr/ & scp /home/briner/git/dolly/dolly/src/dolly su@zone-test2:/usr/local/bin ; date
+
+# dropzone1
+# rsync -a /home/briner/ws/libcbr_0.2/src/libcbr/ su@dropzone1:/usr/local/lib/python/libcbr_0.2/libcbr/ & scp /home/briner/ws/dolly_0.2/src/dolly su@dropzone1:/usr/local/bin ; date
+
+
+# import
+#
+import os, sys
+sys.path.insert(0,'/usr/local/lib/python/libcbr_0.2/')
+import types
+import traceback
+from datetime import datetime, timedelta, date
+import re
+import signal
+import logging
+import subprocess
+import select
+from libcbr import daemon
+from libcbr import repeat_timer
+import libcbr
+from libcbr.iso8601 import parse as iso8601_parse
+from libcbr.dateutil.relativedelta import relativedelta
+my_logger=logging.getLogger('MyLogger')
+
+
+###############################################################################
+# DEFINITION
+
+#
+# definition DEBUG
+DEBUG=['lzfs','clean','_clone_n_mount', '_snap', 'unmount_n_unclone','destroy_old_snapshot_kept', 'populate','populate_ldolly']
+DEBUG=[]
+def print_debug(*args):
+    name=args[0]
+    if name in DEBUG:
+        args=[repr(arg).replace('\\n','\n%s ' % name) for arg in args[1:]]
+        print name+' '+' '.join(args)
+
+# definition PELE MELE
+LOG_FILENAME='/var/log/dolly'
+CONFIG_DIR='/etc/dolly'
+DOLLY_PATH='/dolly'
+
+MEL_SENDER='unix-noreply@unige.ch'
+LEMAIL_ROOT=['unix-bot@unige.ch']
+#
+# definition backup
+#DOLLY_TIMEDELTA=timedelta(8)
+#BACKUP_TIMEDELTA=relativedelta(days=3)
+SNAPSHOT_DATETIME_DELTA=relativedelta(days=7)
+#SNAPSHOT_DATETIME_DELTA=timedelta(0, 0, 0, 0, 5)
+DEFAULT_MOUNTPOINT='/dolly/backup'
+DEFAULT_DIR_TO_CLONE='/'
+#
+MUST_RELOAD=False
+#
+VAR_DIR='/var/run'
+LOCKNAME_FORMAT="%(mountpoint_reldir)s.lock"
+#
+#  definition SNAPNAME
+DOLLY_PREFIX='dolly'
+RE_IS_A_DOLLY_ZFS=re.compile('/dolly_[^/]+$')
+SNAPNAME_FORMAT=DOLLY_PREFIX+'_mnt::%(datetime)s::%(zonename)s'
+def is_a_dolly_zfs(zfs):
+    return bool(RE_IS_A_DOLLY_ZFS.search(zfs.name))  
+#
+# definition DATETIME
+DATETIME_FORMAT='%Y.%m.%d_%H:%M:%S.%f'
+DATE_FORMAT='%Y%m%d'
+RE_DATE=re.compile('^(?P<year>\d+)\.(?P<month>\d+)\.(?P<day>\d+)_(?P<hour>\d+):(?P<minute>\d+):(?P<seconde>\d+).(?P<micro>\d+)$')
+def str2datetime(date_str):
+    year, month, day, hour, minute, seconde, micro=[int(elem) for elem in RE_DATE.match(date_str).groups()]
+    date=datetime(year, month, day, hour, minute, seconde, micro)
+    return date
+def datetime2str(date_time):
+    return date_time.strftime(DATETIME_FORMAT)
+#
+# destroy_dolly_snap
+ZFSDESTROY_R_CMD="zfs destroy -R %s"
+
+#
+# definition HOOKS        
+FN_HOOK_BEFORE_SNAPSHOT='/usr/local/bin/dolly_pre_cmd' # attention stuff relative_2_zonepath must not start with a '/' at the begginning
+FN_HOOK_AFTER_SNAPSHOT='/usr/local/bin/dolly_post_cmd' # attention stuff relative_2_zonepath must not start with a '/' at the begginning
+
+#
+# definition ZONENAME
+ZONENAME=libcbr.zone.get_zonename()
+
+
+###############################################################################
+###############################################################################
+###############################################################################
+# CODE
+def destroy_dolly_snap(name):
+    if name.find("@dolly")==-1:
+        raise Exception("destroy_dolly_snap argument name(%s) is not a dolly snapname" % name)
+    inst_cmd=ZFSDESTROY_R_CMD % name
+    my_logger.debug('zfs destroy -R cmd(%s):' % inst_cmd)
+    proc=subprocess.Popen(inst_cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd='/')
+    lstdout=proc.stdout.readlines()
+    lstderr=proc.stderr.readlines()
+    proc.communicate()
+    retcode=proc.wait()
+    if retcode != 0:
+        lmsg=['the cmd (%s) did not succeed' % inst_cmd]
+        for line in lstdout:
+            lmsg.append(' - stdout: %s' % line.rstrip())
+        for line in lstderr:
+            lmsg.append(' - stderr: %s' % line.rstrip())
+        libcbr.notification.notify.add(lmsg)
+        for msg in lmsg:
+            my_logger.error(msg)
+        raise Exception( 'zfs destroy problem')
+ 
+
+    
+
+def destroy_old_snapshot_kept(now=datetime.now()):
+    my_logger.info('start destroy_old_snapshot_kept')
+    my_logger.debug('destroy_old_snapshot_kept on lzpool(%s)' % ','.join([zpool.name for zpool in libcbr.zfs.get_lzpool()]))   
+    for zpool in libcbr.zfs.get_lzpool():
+        my_logger.info('destroy_old_snapshot_kept for zpool(%s)' % zpool.name)
+        print_debug ('clean', '====ZPOOL(%s)' % zpool.name)
+        #
+        # lock on zpool
+        zpool_unlock=libcbr.stackfunction.stack_function.add(
+            zpool.unlock_it,                                                      
+            title="unlock file'semaphore of zpool(%s)" % zpool.name,
+            group='daemon')
+        zpool.lock_it()
+        #
+        # repopulate all
+        libcbr.zfs.populate_lzfs()
+        libcbr.zfs.populate_lzpool()
+        libcbr.zfs.populate_lsnapshot()
+        libcbr.mount.populate_lmount()
+        #
+        # find all the snapshot, which are unrelated to a clone and created by dolly
+        lsnap_to_destroy=[]
+        for snap in libcbr.zfs.get_lsnapshot():
+            # not cloned
+            if snap.lclone:
+                lclonename=[clone.name for clone in snap.lclone]
+                print_debug('destroy_old_snapshot_kept', 'snap(%s) have clone(%s): skip it' % (snap.name, ','.join(lclonename)))
+                continue 
+            # not created by dolly
+            if snap.duser_prop_value.get('ch.unige:created_by')!=DOLLY_PREFIX :
+                print_debug('destroy_old_snapshot_kept', "snap(%s) isn't related to dolly: skip it" % snap.name )
+                continue
+            # not correct expiration
+            expiration_str=snap.duser_prop_value['ch.unige:expiration_datetime']
+            expiration_datetime=None
+            try:
+                expiration_datetime=str2datetime(expiration_str)
+            except:
+                pass
+            if not expiration_datetime:
+                expiration_repr=repr(snap.duser_prop_value['ch.unige:expiration_datetime'])
+                print_debug('destroy_old_snapshot_kept'
+                            ,"snap(%s) does not have a valid expiration(%s): skip it" % (snap.name, expiration_repr))
+                continue
+            # not expired yet
+            now_str=datetime2str(now)
+            if now < expiration_datetime:
+                print_debug('destroy_old_snapshot_kept'
+                            ,"snap(%s) has not expired(now:%s < exp:%s) yet: skip it" % (snap.name, now_str, expiration_str))
+                continue
+            print_debug('destroy_old_snapshot_kept'
+                       ,"snap(%s) has expired(now:%s > exp:%s) yet: add it" % (snap.name, now_str, expiration_str))
+            lsnap_to_destroy.append(snap)
+        # destroy them
+        for snap in lsnap_to_destroy:
+            libcbr.zfs.populate_lsnapshot()
+            if libcbr.zfs.get_lsnapshot().by_name(snap.name):
+                destroy_dolly_snap(snap.name)
+        zpool_unlock()
+    my_logger.info('stop destroy_old_snapshot_kept')
+
+######################################
+#
+# class  D O L L Y
+#
+class DollyError(Exception):
+    pass
+class DollyErrorAlreadyMounted(DollyError):
+    pass
+class DollyErrorNotMounted(DollyError):
+    pass
+
+class Dolly(object):
+    def __init__(self, snapname, mountpoint):
+        if not os.path.isdir(DOLLY_PATH):
+            os.mkdir(DOLLY_PATH)
+        self.snapname=snapname
+        self.mountpoint=mountpoint
+#        self.snapshot_expiration_datetime=None
+        #not yet implemented self.tag=''
+        self.state='unknown'
+        self._lzfs=None
+        self._lzpool=None
+        self._state=None
+        # more initializing
+        self.lzpool
+        self.lzfs
+    @property
+    def state(self):
+        return self._state
+    @state.setter
+    def state(self, state):
+        if state not in ['unmounted','mounting','mounted','unmounting', 'unknown']:
+            raise ValueError("var state(%s) in class(Dolly) must be in ['unmounted','mounting','mounted','unmounting']" % state)
+        self._state=state
+    @property
+    def lzpool(self):
+        if self._lzpool != None:
+            return self._lzpool
+        self._lzpool=[]
+        szpool=set()        
+        for zfs in self.lzfs:
+            szpool.add(zfs.zpool)
+        self._lzpool=list(szpool)
+        return self._lzpool
+    @property
+    def lzfs(self):
+        def is_zfs_mounted(zfs):
+            if not zfs.get_mountpoint_from_lmount():
+                print_debug('lzfs', ' ko : zfs(%s) has no mountpoint : skip it' % (zfs.name))
+                return False
+            return True
+        def is_zfs_created_by_dolly(zfs):
+            is_created_by_dolly=zfs.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX
+            if is_created_by_dolly:
+                print_debug('lzfs', ' ko : zfs(%s) was created by dolly : skip it' % (zfs.name))
+            return is_created_by_dolly
+        if self._lzfs != None:
+            return self._lzfs
+        print_debug('lzfs', '------------------------------')
+        print_debug('lzfs', '-----  L Z F S  --------------')
+        self._lzfs=[]
+        print_debug('lzfs', 'zonename(%s)' % ZONENAME)
+        if ZONENAME == 'global':
+            # global zone
+            lzonepath=[zone.zonepath for zone in libcbr.zone.get_lzone()]
+            print_debug('lzfs', 'lzonepath(%s)' % ','.join(lzonepath))
+            for zfs in libcbr.zfs.get_lzfs():
+                # filter the one which does not have a mountpoint
+                if not is_zfs_mounted(zfs): 
+                    continue
+                # filter the one which is a dolly clone
+                if is_zfs_created_by_dolly(zfs):
+                    continue
+                # filter the one which belongs to zone
+                if zfs.zoned=='on':
+                    continue
+                # add it
+                print_debug('lzfs', ' ok : zfs(%s) add it' % zfs.name)
+                self._lzfs.append(zfs)
+        else:
+            # WITHIN A ZONE
+            for zfs in libcbr.zfs.get_lzfs():
+                # filter the one which does not have a mountpoint
+                if not is_zfs_mounted(zfs): 
+                    continue
+                # filter the one which is a dolly clone
+                if is_zfs_created_by_dolly(zfs):
+                    continue
+                # add it
+                print_debug('lzfs', ' ok : zfs(%s) add it' % zfs.name)
+                self._lzfs.append(zfs)
+        print_debug('lzfs', '-----  L Z F S  --------------')
+        print_debug('lzfs', '------------------------------')
+        return self._lzfs
+    def _get_lock(self, dinfo):
+        lockname=self.mountpoint+'.lock'
+        self.lock=libcbr.lock.Lock(lockname, dinfo)
+        if self.state=='mounting':
+            if os.path.isdir(self.mountpoint):
+                self.lock=None
+                raise DollyErrorAlreadyMounted       
+        libcbr.stackfunction.stack_function.add(self._release_lock
+                                               ,title='release lock for mountpoint(%s)' % self.mountpoint)
+#    def _release_lock(self, is_after_crash=False):
+    def _release_lock(self):
+        self.lock=None
+#        if is_after_crash:
+#            self.state='unmounted'
+#        else:
+#            self.state='mounted'
+    @classmethod
+    def create_from_demand(self, mountpoint, subzfsdir2clone, snapshot_expiration):
+        '''
+        create is used to dolly of a zone
+        Attention you can not use both arguments isbackup and specific_snapname at the same time
+        '''
+        # snapname
+        snapname=SNAPNAME_FORMAT % {'datetime': datetime2str(datetime.now()) 
+                                   ,'zonename': ZONENAME}
+        # get the lock
+        # do the job
+        dolly=Dolly(snapname, mountpoint)
+
+        dolly._snap_clone_n_mount(subzfsdir2clone, snapshot_expiration)
+        return dolly
+    @classmethod
+    def create_from_FS(cls, mountpoint):
+        if not os.path.isdir(mountpoint):
+            return None
+        zfs=libcbr.zfs.get_lzfs().by_path(mountpoint)
+        if not zfs:
+            my_logger.warning('unable to create Dolly FS from a mountpoint where no zfs is mounted')
+            raise DollyErrorNotMounted()
+        snap=zfs.origin
+        if not snap:
+            my_logger.warning('unable to create Dolly FS from a mountpoint which is not originated from a snapshot')
+            raise DollyErrorNotMounted()
+        is_created_by_dolly=zfs.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX
+#        is_created_by_dolly=False
+#        try:
+#            is_created_by_dolly=zfs.ch.unige.created_by==DOLLY_PREFIX
+#        except:
+#            pass
+        if not is_created_by_dolly:
+            my_logger.warning('unable to create Dolly FS, from a the zfs(%s) which was not created_by dolly' % zfs.name)
+            raise DollyErrorNotMounted()
+            pass
+        dolly=Dolly(snap.snapname, mountpoint)
+        return dolly
+    def replicate(self, tag=None, expiration_datetime=None):
+        #TODO: create_from_FS
+        pass
+    def _snap_clone_n_mount(self, subzfsdir2clone, snapshot_expiration ):
+        #
+        #
+        dinfo={'mountpoint':self.mountpoint
+              ,'snapname':self.snapname
+              ,'subzfsdir2clone': subzfsdir2clone
+              ,'state' : 'snap_clone_n_mount'}
+        self._get_lock(dinfo)
+        #
+        # prepare the umount in case of failure
+#        reason_for_umount='_snap_clone_n_mount ^C or kill -15 for zone(%s) mountpoint(%s)' % (self.zone.zonename, self.mountpoint_reldir)
+#        fun_umount=libcbr.stackfunction.stack_function.add(self.zone.dolly_usual_umount,
+#                                                          [],
+#                                                          {'reason':reason_for_umount},
+#                                                          title='umount zone(%s), mountpoint_reldir(%s)' % (self.zone.zonename,
+#                                                                                                            self.mountpoint_reldir))
+        #
+        # launch the hook before snapshot
+        self.launch_hook("before")
+        launch_hook_after_snapshot=libcbr.stackfunction.stack_function.add(self.launch_hook
+                                                                          ,args=["after"]
+                                                                          ,title='hook_after_snapshot')
+        #
+        # snapshot
+        self._snap(snapshot_expiration)
+        #FN_HOOK_BEFORE_SNAPSHOT
+        # clone & mount 
+        my_logger.debug('clone  & mount dolly')
+        self._clone_n_mount(snapshot_expiration, subzfsdir2clone)
+        #
+        # hook after snapshot
+        launch_hook_after_snapshot()
+
+        #
+        #        fun_umount.delete()
+        self._release_lock()
+        my_logger.info('snaped, cloned & mounted' )
+    def _snap(self, snapshot_expiration):
+        my_logger.info('dolly _snap(%s)' % self.snapname)
+        #
+        # snapshot lzpool recursively
+        my_logger.debug('snapshot lzpool recursively')
+        lzpoolname=[zpool.name for zpool in self.lzpool]
+        if len(lzpoolname)>1:
+            msg="the zone(%s) has more that one zpool(%s), all the data won't be syncronized" \
+                    % (ZONENAME, ','.join(lzpoolname) )
+            my_logger.warning(msg)
+        for zpool in self.lzpool:
+            zfs_of_zpool=libcbr.zfs.get_lzfs().by_name(zpool.name)
+            doption={'ch.unige:expiration_datetime': datetime2str(snapshot_expiration)
+                    ,'ch.unige:created_by': DOLLY_PREFIX
+                    ,'ch.unige.dolly:zone': ZONENAME
+                    ,'ch.unige.dolly:mountpoint': self.mountpoint}
+            zfs_of_zpool.do_snapshot(self.snapname, isrecursive=True, doption=doption)
+        #
+        # remove snapshots which will not be used for cloning
+        my_logger.debug('Is there some snapshots which will not be used for cloning')
+        #
+        libcbr.zfs.populate_lsnapshot()
+        libcbr.zfs.populate_lzfs()
+        #
+        lsnap=libcbr.zfs.get_lsnapshot().by_snapname(self.snapname)
+        lsnapname=[snap.name for snap in lsnap]
+        lsnapshotname_necessary=["%s@%s" % (zfs.name, self.snapname) for zfs in self.lzfs]
+        lsnapname_to_destroy=list( set(lsnapname)-set(lsnapshotname_necessary) )
+        #
+        if lsnapname_to_destroy:
+            my_logger.debug('destroy them')
+            for snap in lsnapname_to_destroy:
+                libcbr.zfs.destroy(snap)
+            my_logger.debug('unnecessary snapshot destroyed')
+        #
+        #
+        my_logger.info('dolly _snap(%s) done' % self.snapname)     
+    def _clone_n_mount(self, snapshot_expiration, subzfsdir2clone):
+        my_logger.info("dolly _clone_mount snapname(%s), mountpoint(%s)" % (self.snapname
+                                                                           ,self.mountpoint))
+        #
+        # prepare the umount in case of failure
+#TODO:
+#        reason_for_umount='_clone_n_mount ^C or kill -15 for zone(%s) mountpoint(%s)' % (self.zone.zonename, self.mountpoint)
+#        fun_umount=libcbr.stackfunction.stack_function.add(self.zone.dolly_usual_umount,
+#                                                          [self.mountpoint],
+#                                                          {'reason':reason_for_umount},
+#                                                          title='umount zone(%s), mountpoint_reldir(%s)' % (self.zone.zonename,
+#                                                                                                            self.mountpoint))
+        #
+        # sort lfs_info, to clone and mount. The mounting process must start to mount
+        # the shortest path first
+        lmount=libcbr.mount.get_lmount(under_path=subzfsdir2clone)
+        lzfs=[]
+        print_debug('_clone_n_mount', '--------- LMOUNT------------------')
+        for mount in lmount:
+                    print_debug('unmount_n_unclone', mount.device_to_mount )
+        print_debug('_clone_n_mount', '----------------------------------')
+        for mount in lmount:
+            zfs=libcbr.zfs.get_lzfs().by_name(mount.device_to_mount)
+            if zfs:
+                if zfs.duser_prop_value.get('ch.unige:created_by')!=DOLLY_PREFIX:
+                    lzfs.append(zfs)
+        #
+        lzfs.sort(libcbr.zfs.Zfs.cmp_by_mountpoint_from_lmount)
+        print_debug('_clone_n_mount', 'show zfs order')
+        for zfs in lzfs:
+            print_debug('_clone_n_mount', 'zfs name    :', zfs.name)
+            print_debug('_clone_n_mount', '  mountpoint:', zfs.get_mountpoint_from_lmount)
+        for zfs in lzfs:
+            mountpoint=os.path.join(self.mountpoint, zfs.get_mountpoint_from_lmount()[1:])
+            mountpoint=os.path.normpath(mountpoint)
+            hash4newzfsname=os.path.basename(self.mountpoint)
+            new_zfsname="%s/%s_%s_%s"%(zfs.name, DOLLY_PREFIX, hash4newzfsname, ZONENAME)
+            new_zfsname=os.path.normpath(new_zfsname)
+            new_zfsname=libcbr.path.rstrip_slash(new_zfsname)
+            snapshot_expiration_str=datetime2str(snapshot_expiration)
+            # debug
+            print_debug('_clone_n_mount', 'zfs.mountpoint',  zfs.get_mountpoint_from_lmount())
+            print_debug('_clone_n_mount', ' zfs.name', zfs.name)
+            print_debug('_clone_n_mount', ' snapname', self.snapname)
+            print_debug('_clone_n_mount', ' new_zfsname', new_zfsname)
+            print_debug('_clone_n_mount', ' new_mountpoint', mountpoint)
+            print_debug('_clone_n_mount', ' expiration',snapshot_expiration_str)
+            print_debug('_clone_n_mount', '2 new_zfsname',  new_zfsname)
+            #
+            #mount the clone
+            doption={'mountpoint':mountpoint
+                     ,'ch.unige:created_by': DOLLY_PREFIX
+                     ,'ch.unige.dolly:zone' : ZONENAME
+                     ,'ch.unige:no_snapshots': 'on'
+                     ,'ch.unige.dolly:mountpoint' : self.mountpoint}
+            snapshot_name="%s@%s" % (zfs.name, self.snapname)
+            libcbr.zfs.clone_zfs(snapshot_name, new_zfsname, doption=doption)
+        my_logger.info("dolly clone_mount ended")
+    def unmount_n_unclone(self):
+        my_logger.info('unmount_n_unclone mountpoint(%s)' % self.mountpoint )
+        #
+        # repopulate all
+        libcbr.zfs.populate_lzfs()
+        libcbr.zfs.populate_lzpool()
+        libcbr.zfs.populate_lsnapshot()
+        libcbr.mount.populate_lmount()
+        #
+        dinfo={'mountpoint':self.mountpoint
+              ,'state' : 'unmount_n_unclone'}
+        self._get_lock(dinfo)
+        #
+        # get the list of the ZFS clone mounted under this path       
+        lzfs=[]
+        lmount=libcbr.mount.get_lmount(under_path=self.mountpoint)
+        print_debug('unmount_n_unclone', '--------- LMOUNT------------------')
+        for mount in lmount:
+                    print_debug('unmount_n_unclone', mount.device_to_mount )
+        print_debug('unmount_n_unclone', '----------------------------------')
+        for mount in lmount:
+            zfs=libcbr.zfs.get_lzfs().by_name(mount.device_to_mount)
+            lzfs.append(zfs)
+        #
+        # umount the ZFS clone
+        lzfs.sort(libcbr.zfs.Zfs.cmp_by_mountpoint_from_lmount)
+        lzfs.reverse()
+        print_debug('unmount_n_unclone', '--------- LZFS------------------')
+        for zfs in lzfs:
+                    print_debug('unmount_n_unclone', zfs.name )
+        print_debug('unmount_n_unclone', '----------------------------------')
+        if lzfs:
+            my_logger.debug('unmount zfs(%s)' % ', '.join( [zfs.name for zfs in lzfs ]) )
+        for zfs in lzfs:
+            zfs.unmount()
+        #
+        # destroy the mountpoint
+        if os.path.isdir(self.mountpoint):
+            os.rmdir(self.mountpoint)
+        #
+        # unclone the ZFS clone
+        lzfs.sort(libcbr.zfs.Zfs.cmp_by_name)
+        lzfs.reverse
+        for zfs in lzfs:
+            libcbr.zfs.destroy(zfs.name)
+        #
+        # ending
+        self._release_lock()    
+        my_logger.info('unmount_n_unclone done' )
+
+    def launch_hook(self, before_or_after):
+        if before_or_after not in ['before', 'after']:
+            raise ValueError('arguement(before_or_after) in def(lauch_hook) must be in ["before", "after"]' )
+        my_logger.debug('enter in launch_hook')
+        fn_hook=FN_HOOK_BEFORE_SNAPSHOT if before_or_after=='before' else FN_HOOK_AFTER_SNAPSHOT
+        if not os.path.isfile(fn_hook):
+            my_logger.info('no hook(%s) %s snapshot' % (fn_hook, before_or_after))
+            return
+        #
+        my_logger.info('execute hook(%s) %s snapshot' % (fn_hook, before_or_after))
+        proc=subprocess.Popen(fn_hook, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd='/')
+        read_set=[proc.stdout, proc.stderr]
+        lline_hook=[]
+        send_email=False
+        while read_set:
+            rlist,unused_wlist,unused_xlist=select.select(read_set, [], [])
+            if proc.stdout in rlist:
+                stdout=proc.stdout.readline()
+                if stdout == '':
+                    read_set.remove(proc.stdout)
+                else:
+                    stdout=stdout.rstrip()
+                    msg='hook (out): %s' % stdout
+                    lline_hook.append(msg)
+                    my_logger.debug(msg)
+            if proc.stderr in rlist:
+                stderr=proc.stderr.readline()
+                if stderr == '':
+                    read_set.remove(proc.stderr)
+                else:
+                    send_email=True
+                    stderr=stderr.rstrip()
+                    msg='hook (err): %s' % stderr
+                    my_logger.error(msg)
+                    lline_hook.append(libcbr.log.getLogStr())
+        if send_email:
+            lbody_email=['zone(%s)' % ZONENAME
+                        ,' - hook cmd (%s)' % fn_hook
+                        ]+ [' - %s' % line for line in lline_hook]
+            libcbr.notification.notify.add(lbody_email, lrecipient=self.lrecipient)
+
+_ldolly_mnt=[]
+_lmap_mountpoint_snap=[]
+_do_populate_ldolly=True
+def get_ldolly_mnt():
+    #        
+    if _do_populate_ldolly==True:
+        populate_ldolly_mnt_n_snap()
+    lret=_ldolly_mnt[:]
+    return lret
+
+def get_lmap_mountpoint_snap():
+    #        
+    if _do_populate_ldolly==True:
+        populate_ldolly_mnt_n_snap()
+    lret=_lmap_mountpoint_snap[:]
+    return lret
+
+def populate_ldolly_mnt_n_snap():
+    my_logger.debug('refresh zfs.populate_lsnapshot')
+    global _ldolly_mnt
+    global _lmap_mountpoint_snap
+    global _do_populate_ldolly
+    #
+    #TODO : get the lock
+    pass
+    # refresh the data
+    libcbr.zfs.populate_lzfs()
+    libcbr.zfs.populate_lzpool()
+    libcbr.zfs.populate_lsnapshot()
+    libcbr.mount.populate_lmount()
+    #
+    ldolly_mountpoint=[]
+    for zfs in libcbr.zfs.get_lzfs():
+        if not zfs.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX:
+            print_debug('populate_ldolly', 'mnt: zfs(%s) not created by dolly : skip it' % zfs.name)
+            continue
+        #---
+        zfs_mountpoint=zfs.get_mountpoint_from_lmount()
+        if not zfs_mountpoint:
+            print_debug('populate_ldolly', 'mnt: zfs(%s) is not mounted : skip it' % zfs.name)
+            continue
+        #---
+        dolly_mountpoint=zfs.duser_prop_value.get('ch.unige.dolly:mountpoint')
+        if not dolly_mountpoint:
+            print_debug('populate_ldolly', 'mnt: zfs(%s) as not a "ch.unige.dolly:mountpoint" : skip it' % zfs.name)
+            continue
+        #---
+        in_which_zonename=zfs.duser_prop_value.get('ch.unige.dolly:zone')
+        this_zonename=libcbr.zone.get_zonename()
+        if in_which_zonename != this_zonename:
+            print_debug('populate_ldolly', 'mnt: zfs(%s) does not belong to this zone(%s != %s) : skip it' % (zfs.name, in_which_zonename , this_zonename ))
+            continue
+        #---
+        print_debug('populate_ldolly', 'mnt: add dolly_mountpoint(%s) : add it' % dolly_mountpoint)
+        ldolly_mountpoint.append(dolly_mountpoint)
+    ldolly_mountpoint=list(set(ldolly_mountpoint))
+    _ldolly_mnt=[Dolly.create_from_FS(dolly_mountpoint) for dolly_mountpoint in ldolly_mountpoint]
+    #
+    #
+    _lmap_mountpoint_snap=[]
+    for snap in libcbr.zfs.get_lsnapshot():
+        if not snap.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX:
+            print_debug('populate_ldolly', 'snap: snap(%s) not created by dolly : skip it' % snap.name)
+            continue
+        dolly_mountpoint=snap.duser_prop_value.get('ch.unige.dolly:mountpoint')
+        if not dolly_mountpoint:
+            print_debug('populate_ldolly', 'snap: snap(%s) as not a "ch.unige.dolly:mountpoint" : skip it' % snap.name)
+            continue
+        lclone=snap.lclone
+        if lclone!=[]:
+            print_debug('populate_ldolly', 'snap: snap(%s) as clone depending on it : skip it' % snap.name)
+            continue
+        print_debug('populate_ldolly', 'snap: add dolly_snapshot(%s) : add it' % snap.name)
+        _lmap_mountpoint_snap.append((dolly_mountpoint, snap))
+    _lmap_mountpoint_snap=list(set(_lmap_mountpoint_snap))
+    #
+    _do_populate_ldolly=False
+
+def clone(mountpoint, subdir, snapshot_expiration):
+    unused_dolly=Dolly.create_from_demand(mountpoint, subdir, snapshot_expiration)
+    destroy_old_snapshot_kept()
+
+#def kill(expiration=None, mountpoint):
+def kill(mountpoint):
+    dolly=Dolly.create_from_FS(mountpoint)
+    if not dolly:
+        my_logger.error("unable to kill a dolly mounted(%s), not a dolly")
+        sys.exit(1)
+    dolly.unmount_n_unclone()
+    destroy_old_snapshot_kept()
+
+def list_dolly():
+    lmnt=get_ldolly_mnt()
+    if lmnt:
+        print "mountpoint :"
+        for dolly in lmnt:
+            print " ", dolly.mountpoint
+    #
+    lmap_mountpoint_snap=get_lmap_mountpoint_snap()
+    lmnt=list(set([mountpoint for mountpoint, snap in lmap_mountpoint_snap]))
+    if lmap_mountpoint_snap:
+        print "snapshot kept :"
+        for mnt in lmnt:
+            is_show_mountpoint = True
+            lsnapname=list(set([snap.snapname for mountpoint, snap in lmap_mountpoint_snap if mountpoint == mnt]))
+            for snapname in lsnapname:
+                print "", mnt if is_show_mountpoint else " " * len(mnt),
+                print "@%s" % snapname
+#                lzfsname=[snap.zfsname for mountpoint, snap in lmap_mountpoint_snap if (mountpoint == mnt)and(snap.snapname==snapname)]
+#                print ",".join(lzfsname)
+                is_show_mountpoint = False
+#
+# the main function
+#
+if '__main__' == __name__:
+    from optparse import OptionParser
+    parser = OptionParser(usage='''
+    %prog clone [--mountpoint=<path>] [--sub-zfs-dir=<path>] [--snapshot-expiration-datetime=<iso8601>]
+    %prog kill [--mountpoint=<path>]
+    %prog destroy-old-snapshot-kept [--as-we-were-in=<iso8601>]''')
+    parser.add_option("--mountpoint",                          dest="mountpoint",    default=DEFAULT_MOUNTPOINT
+                     ,help='under which path the dolly should be mounted')
+    parser.add_option("--sub-zfs-dir",                           dest="subzfsdir2clone",  default=DEFAULT_DIR_TO_CLONE
+                     ,help='under which path the dolly should be mounted')
+    parser.add_option("--snapshot-expiration-datetime",        dest="expiration",    default=None
+                     ,help='under which path the dolly should be mounted')
+    parser.add_option("--as-we-were-in",                       dest="another_now", default=None
+                     ,help='expiration or duration in <iso8601> format. (eg: duration of 5 day:P5D, of 5 min: PT5M, at datetime 2012.09.1975: 1975-08-19 )')
+    parser.add_option("-v", "--verbose", action="store_true",  dest="isverbose",   default=False )    
+    parser.add_option("--no-email",      action="store_false", dest="send_email"
+                     ,help='do not send any email')
+    parser.add_option("-d", "--debug",   action="store_true",  dest="debug",       default=False
+                     ,help='increase the level of debugging')
+    (options, args) = parser.parse_args()
+    #
+    #
+    def print_help_n_exit(msg=None):
+        parser.print_help()
+        if msg:
+            print ''
+            print msg 
+        sys.exit(1)
+    #
+    #
+    must_debug=False
+    #
+    # Do we need to rotate the log
+    laction=[]
+    is_usage_well_formated=True
+    lmsg4error_parser=[]
+    #
+    signal.signal(signal.SIGINT,  libcbr.stackfunction.stack_function.terminate)
+    signal.signal(signal.SIGTERM, libcbr.stackfunction.stack_function.terminate)
+    try:
+        #
+        # enable the log
+        can_be_verbose=True
+        if options.debug or DEBUG:
+            must_debug=True
+        is_verbose=False
+        if options.isverbose and can_be_verbose:
+            is_verbose=True
+        libcbr.log.logger.enable_it(is_verbose, must_debug, LOG_FILENAME)
+        my_logger.info('dolly start in the __main__ place')
+        #
+        # parse the arguments
+        #---
+        another_now=datetime.now()
+        if options.another_now:
+            datetime_or_duration=iso8601_parse(options.another_now)
+            if isinstance(datetime_or_duration, relativedelta):
+                another_now=datetime.now()+datetime_or_duration
+            if isinstance(datetime_or_duration, datetime):
+                another_now=datetime_or_duration            
+            if another_now < datetime.now():
+                print_help_n_exit('--as-we-were-in can not point to the past')
+        #---
+        snapshot_expiration=datetime.now()+SNAPSHOT_DATETIME_DELTA
+        if options.expiration:
+            expiration_or_duration=iso8601_parse(options.expiration)
+            if isinstance(expiration_or_duration, relativedelta):
+                snapshot_expiration=datetime.now()+expiration_or_duration
+            if isinstance(expiration_or_duration, datetime):
+                snapshot_expiration=expiration_or_duration            
+            if snapshot_expiration < datetime.now():
+                print_help_n_exit('--snapshot-expiration-datetime can not point to the past')
+        if options.subzfsdir2clone:
+            zfs_holding=libcbr.zfs.get_lzfs().by_path(options.subzfsdir2clone)
+            if not zfs_holding:
+                print_help_n_exit('--sub-zfs-dir must point to a directory which point to a ZFS mountpoint')            
+        #---
+        if len(args)==0:
+            list_dolly()
+        elif args[0]=="clone":          # dolly create  [--mountpoint=<path>]
+            if (options.another_now) or (len(args) >2):
+                print_help_n_exit()
+            clone(options.mountpoint, options.subzfsdir2clone, snapshot_expiration)
+        elif args[0]=="kill":         # dolly destroy [--mountpoint=<path>]
+            if (options.another_now) or (len(args) >2):
+                print_help_n_exit()
+            kill(options.mountpoint)
+        elif args[0]=="destroy-old-snapshot-kept":     # destroy-old-snapshot-kept
+            if len(args) > 2:
+                print_help_n_exit()
+            if another_now:
+                destroy_old_snapshot_kept(another_now)
+            else:
+                destroy_old_snapshot_kept()
+        else:
+            print_help_n_exit()
+    except SystemExit, inst_system_exit:
+        raise inst_system_exit
+    except:
+        exc_type, exc_value, exc_traceback = sys.exc_info()
+        tb_format_exception=traceback.format_exception(exc_type, exc_value
+                                                       ,exc_traceback)
+        libcbr.log.logger.is_stdout_enabled=True
+        msg='error in dolly, freeing resources:'
+        my_logger.error(msg)
+        libcbr.stackfunction.stack_function.terminate_group()
+        msg='resources free'
+        lmsg=[]
+        lmsg.append('Error Stack will follow:')
+        for line in tb_format_exception:
+            lmsg.append(' %s' % line)
+        #
+        [my_logger.error(msg) for msg in lmsg]
+        #
+        sys.exit(1)
+    sys.exit()

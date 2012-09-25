@@ -1,0 +1,43 @@
+= configure dsmc =
+# dsm.sys example
+SErvername      backup-test2_-_zone
+   COMMMethod          TCPip
+   TCPPort             1506
+   TCPServeraddress    sos6.unige.ch
+   NODENAME            backup-test2_-_zone
+   PASSWORDACCESS      generate
+   MAXCMDRETRIES       6
+   RETRYPERIOD         10
+   ERRORLOGNAME        /var/log/dsmerror.log
+   ERRORLOGRETENTION   10
+   SCHEDLOGNAME        /var/log/dsmsched.log
+   PRESCHEdulecmd      "/usr/local/bin/tsm_pre_schedule_cmd"
+   POSTSChedulecmd     "/usr/local/bin/tsm_post_schedule_cmd"
+   SCHEDLOGRETENTION   7
+   Domain              /dolly/backup
+
+= installation of pre/post commande when dsmc in schedule cmd =
+cp tsm_{pre,post}_schedule_cmd /usr/local/bin
+chmod +x /usr/local/bin/tsm_{pre,post}_schedule_cmd
+
+= installation of the manifest for dsmc =
+cp dsmc-sched /lib/svc/method
+chmod 555 /lib/svc/method/dsmc-sched
+mkdir /var/svc/manifest/application/backup
+cp dsmc-sched.xml /var/svc/manifest/application/backup
+svccfg import /var/svc/manifest/application/backup/dsmc-sched.xml
+#
+# enable it
+svcadm enable dsmc-sched
+svcs -p dsmc-sched
+  # STATE          STIME    FMRI
+  # online         Apr_04   svc:/application/backup/dsmc-sched:default
+  # 
+  #                 Apr_04        239 dsmc
+#
+# check that it is enabled
+ps -fp 239
+  #      UID   PID  PPID   C    STIME TTY         TIME CMD
+  #     root   239     1   0   Apr 04 ?           3:25 /usr/bin/dsmc sched
+
+# You can prove that SMF is doing its job by killing the dsmc process. It should restart automatically.
