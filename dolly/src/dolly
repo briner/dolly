@@ -15,7 +15,7 @@
 # rsync -a /home/briner/ws/libcbr_0.2/src/libcbr/ su@dropzone1:/usr/local/lib/python/libcbr_0.2/libcbr/ & scp /home/briner/ws/dolly_0.2/src/dolly su@dropzone1:/usr/local/bin ; date
 
 
-# import
+# import a
 #
 import os, sys
 sys.path.insert(0,'/usr/local/lib/python/libcbr_0.2/')
