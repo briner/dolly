@@ -57,6 +57,7 @@ LEMAIL_ROOT=['unix-bot@unige.ch']
 #
 # definition backup
 SNAPSHOT_DATETIME_DELTA_STR="P7D"
+SNAPSHOT_DATETIME_DELTA_STR="PT2M"
 DEFAULT_MOUNTPOINT='/dolly/backup'
 DEFAULT_DIR_TO_CLONE='/'
 #
@@ -124,9 +125,9 @@ def destroy_dolly_snap(name):
 
     
 
-def destroy_old_snapshot_kept(now=datetime.now()):
+def destroy_old_snapshot_kept(now, mountpoint):
     my_logger.info('start destroy_old_snapshot_kept')
-    my_logger.debug('destroy_old_snapshot_kept on lzpool(%s)' % ','.join([zpool.name for zpool in libcbr.zfs.get_lzpool()]))   
+    my_logger.debug('destroy_old_snapshot_kept on lzpool(%s)' % ','.join([zpool.name for zpool in libcbr.zfs.get_lzpool()]))
     for zpool in libcbr.zfs.get_lzpool():
         my_logger.info('destroy_old_snapshot_kept for zpool(%s)' % zpool.name)
         print_debug ('clean', '====ZPOOL(%s)' % zpool.name)
@@ -156,6 +157,12 @@ def destroy_old_snapshot_kept(now=datetime.now()):
             if snap.duser_prop_value.get('ch.unige:created_by')!=DOLLY_PREFIX :
                 print_debug('destroy_old_snapshot_kept', "snap(%s) isn't related to dolly: skip it" % snap.name )
                 continue
+            # not belonging to this mountpoint
+            if mountpoint != "all":
+                snap_mnt=snap.duser_prop_value['ch.unige.dolly:mountpoint']
+                if snap_mnt!=mountpoint:
+                    print_debug('destroy_old_snapshot_kept', "snap(%s) isn't related to the good mountpoint(%s = %s ): skip it" % (snap.name, snap_mnt, mountpoint ) )
+                    continue
             # not correct expiration
             expiration_str=snap.duser_prop_value['ch.unige:expiration_datetime']
             expiration_datetime=None
@@ -319,7 +326,6 @@ class Dolly(object):
             msg='unable to create Dolly FS from a mountpoint(%s) where no zfs is mounted' % mountpoint
             my_logger.warning(msg)
             raise DollyErrorNotMounted(msg)
-        snap=zfs.origin
         lmount=libcbr.mount.get_lmount(under_path=mountpoint)
         lsnapname=[]
         for mount in lmount:
@@ -371,8 +377,27 @@ class Dolly(object):
               ,'subzfsdir2clone': subzfsdir2clone
               ,'state' : 'snap_clone_n_mount'}
         self._get_lock(dinfo)
+        release_lock=libcbr.stackfunction.stack_function.add(self._release_lock,
+                                                             [],
+                                                             {},
+                                                             title='release lock for mountpoint(%s)' %self.mountpoint)
+
         #
         # prepare the umount in case of failure
+        dolly=None
+        try:
+            dolly=self.create_from_FS(self.mountpoint)
+        except DollyErrorNotMounted :
+            pass
+        if dolly:
+            msg="can not clone on this mountpoint(%s) a clone is already here" % self.mountpoint
+            my_logger.warning(msg)
+            print msg
+            sys.exit(1)
+        if os.path.isfile(self.mountpoint) or os.path.isdir(self.mountpoint):
+            msg="can not clone on this mountpoint(%s): file or dir already exist" % self.mountpoint
+            my_logger.warning(msg)
+            sys.exit(1)
 #        reason_for_umount='_snap_clone_n_mount ^C or kill -15 for zone(%s) mountpoint(%s)' % (self.zone.zonename, self.mountpoint_reldir)
 #        fun_umount=libcbr.stackfunction.stack_function.add(self.zone.dolly_usual_umount,
 #                                                          [],
@@ -398,7 +423,7 @@ class Dolly(object):
 
         #
         #        fun_umount.delete()
-        self._release_lock()
+        release_lock()
         my_logger.info('snaped, cloned & mounted' )
     def _snap(self, snapshot_expiration):
         my_logger.info('dolly _snap(%s)' % self.snapname)
@@ -534,9 +559,9 @@ class Dolly(object):
         #
         # destroy the mountpoint
         ldir=[]
-        for (path, unused_dirs, unused_files) in os.walk("a1"):
-            ldir.append(path)
-        ldir.sort(libcbr.path.CPath.__cmp__)
+        for (path, unused_dirs, unused_files) in os.walk(self.mountpoint):
+            ldir.append(libcbr.path.CPath(path))
+        ldir.sort()
         ldir.reverse()
         for dir_to_remove in ldir:
             os.rmdir(dir_to_remove)
@@ -672,16 +697,18 @@ def populate_ldolly_mnt_n_snap():
 
 def clone(mountpoint, subdir, snapshot_expiration):
     unused_dolly=Dolly.create_from_demand(mountpoint, subdir, snapshot_expiration)
-    destroy_old_snapshot_kept()
+    destroy_old_snapshot_kept(datetime.now(), mountpoint)
 
 #def kill(expiration=None, mountpoint):
 def kill(mountpoint):
     dolly=Dolly.create_from_FS(mountpoint)
     if not dolly:
-        my_logger.error("unable to kill a dolly mounted(%s), not a dolly")
-        sys.exit(1)
+        msg="unable to kill a dolly not mounted(%s), not a dolly" % mountpoint
+        my_logger.error(msg)
+        print msg
+        sys.exit(2)
     dolly.unmount_n_unclone()
-    destroy_old_snapshot_kept()
+    destroy_old_snapshot_kept(datetime.now(), mountpoint)
 
 def list_dolly():
     lmnt=get_ldolly_mnt()
@@ -716,9 +743,9 @@ if '__main__' == __name__:
     %prog clone [--mountpoint=<path>] [--sub-zfs-dir=<path>] [--snapshot-expiration-datetime=<iso8601>]
                 [--pre-hook=<path>] [--post-hook=<path>]
     %prog kill [--mountpoint=<path>]
-    %prog destroy-old-snapshot-kept [--mountpoint=<path>] [--as-we-were-in=<iso8601>]''')
+    %prog destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]''')
     parser.add_option("--mountpoint",                          dest="mountpoint",      default=DEFAULT_MOUNTPOINT
-                     ,help='under which path the clone is mounted (default:"%s")' % DEFAULT_MOUNTPOINT)
+                     ,help='under which path the clone is (default:"%s")' % DEFAULT_MOUNTPOINT)
     parser.add_option("--sub-zfs-dir",                         dest="subzfsdir2clone", default=DEFAULT_DIR_TO_CLONE
                      ,help='to clone only a subtree of the VFS. the value MUST be a zfs mountpoint (default:"%s")' % DEFAULT_DIR_TO_CLONE)
     parser.add_option("--snapshot-expiration-datetime",        dest="expiration_str",      default=SNAPSHOT_DATETIME_DELTA_STR
@@ -819,7 +846,7 @@ if '__main__' == __name__:
         elif args[0]=="destroy-old-snapshot-kept":     # destroy-old-snapshot-kept [--mountpoint=<path>]  [--as-we-were-in=<iso8601>]
             if len(args) > 2:
                 print_help_n_exit()
-            destroy_old_snapshot_kept(another_now, )
+            destroy_old_snapshot_kept(another_now, options.mountpoint)
         else:
             print_help_n_exit()
     except SystemExit, inst_system_exit:
