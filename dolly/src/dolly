@@ -49,17 +49,15 @@ def print_debug(*args):
 
 # definition PELE MELE
 LOG_FILENAME='/var/log/dolly'
-CONFIG_DIR='/etc/dolly'
 DOLLY_PATH='/dolly'
 
 MEL_SENDER='unix-noreply@unige.ch'
 LEMAIL_ROOT=['unix-bot@unige.ch']
 #
 # definition backup
-SNAPSHOT_DATETIME_DELTA_STR="P7D"
-SNAPSHOT_DATETIME_DELTA_STR="PT2M"
-DEFAULT_MOUNTPOINT='/dolly/backup'
-DEFAULT_DIR_TO_CLONE='/'
+DEFAULT_SNAPSHOT_ISO8601_STR="P7D" # tells how long a snapshot will be kept
+DEFAULT_MOUNTPOINT='/dolly/backup' 
+DEFAULT_DIR_TO_CLONE='/'           # "/" clone from the root of the VFS, must be a mountpoint of a zfs
 #
 MUST_RELOAD=False
 #
@@ -748,8 +746,8 @@ if '__main__' == __name__:
                      ,help='under which path the clone is (default:"%s")' % DEFAULT_MOUNTPOINT)
     parser.add_option("--sub-zfs-dir",                         dest="subzfsdir2clone", default=DEFAULT_DIR_TO_CLONE
                      ,help='to clone only a subtree of the VFS. the value MUST be a zfs mountpoint (default:"%s")' % DEFAULT_DIR_TO_CLONE)
-    parser.add_option("--snapshot-expiration-datetime",        dest="expiration_str",      default=SNAPSHOT_DATETIME_DELTA_STR
-                     ,help='the time we will keep the snapshot after the cloning (default:"%s")' % SNAPSHOT_DATETIME_DELTA_STR)
+    parser.add_option("--snapshot-expiration-datetime",        dest="expiration_str",      default=DEFAULT_SNAPSHOT_ISO8601_STR
+                     ,help='the time we will keep the snapshot after the cloning (default:"%s")' % DEFAULT_SNAPSHOT_ISO8601_STR)
     parser.add_option("--pre-hook",                            dest="pre_hook",        default=FN_HOOK_BEFORE_SNAPSHOT
                      ,help='hook script launched before cloning, e.g. stop the DB (default:"%s")' % FN_HOOK_BEFORE_SNAPSHOT)
     parser.add_option("--post-hook",                           dest="post_hook",       default=FN_HOOK_AFTER_SNAPSHOT
