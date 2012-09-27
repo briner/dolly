@@ -5,6 +5,9 @@ This tool was mainly created to decrease the time of the down time when backupin
 and to benefit the property of the zfs snapshot : quick and a coherent FS where all the
 files are at the same time.
 
+If you find this script usefull, consider a recommendation on LinkedIn with my
+email briner@infomaniak.ch .
+
 dolly -h
 Usage: 
     dolly clone [--mountpoint=<path>] [--sub-zfs-dir=<path>] [--snapshot-expiration-datetime=<iso8601>]
@@ -126,5 +129,3 @@ dolly
 
  
  
- 
- dolly destroy-old-snapshot-kept --as-we-were-in=P5Y
