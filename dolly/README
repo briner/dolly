@@ -10,7 +10,11 @@ email briner@infomaniak.ch .
 
 
 ----------------------------------------------
+DEPENDENCIES:
+libcbr from https://github.com/briner/libcbr
 
+----------------------------------------------
+HELP:
 dolly -h
 Usage: 
     dolly clone [--mountpoint=<path>] [--sub-zfs-dir=<path>] [--snapshot-expiration-datetime=<iso8601>]
@@ -44,8 +48,7 @@ Options:
   
 
 ----------------------------------------------
-Usage:  
- 
+USAGE:
 1. let's look at the VFS
 zfs list
   # NAME                            USED  AVAIL  REFER  MOUNTPOINT
