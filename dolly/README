@@ -8,6 +8,9 @@ files are at the same time.
 If you find this script usefull, consider a recommendation on LinkedIn with my
 email briner@infomaniak.ch .
 
+
+----------------------------------------------
+
 dolly -h
 Usage: 
     dolly clone [--mountpoint=<path>] [--sub-zfs-dir=<path>] [--snapshot-expiration-datetime=<iso8601>]
@@ -39,7 +42,9 @@ Options:
   --no-email            do not send any email
   -d, --debug           increase the level of debugging
   
-  
+
+----------------------------------------------
+Usage:  
  
 1. let's look at the VFS
 zfs list
