@@ -705,19 +705,24 @@ def list_dolly():
     #
     lmap_mountpoint_snap=get_lmap_mountpoint_snap()
     lmnt=list(set([mountpoint for mountpoint, snap in lmap_mountpoint_snap]))
+    lmnt.sort(libcbr.mix.cmpAlphaNum)
+    l2print=[]
     if lmap_mountpoint_snap:
-        print "snapshot kept :"
         for mnt in lmnt:
             is_show_mountpoint = True
             lsnapname=list(set([snap.snapname for mountpoint, snap in lmap_mountpoint_snap if mountpoint == mnt]))
+            lsnapname=[snapname for snapname in lsnapname if not snapname in lsnapname_active]
+            lsnapname.sort(libcbr.mix.cmpAlphaNum)
             for snapname in lsnapname:
-                if snapname in lsnapname_active:
-                    continue
-                print "", mnt if is_show_mountpoint else " " * len(mnt),
-                print "@%s" % snapname
-#                lzfsname=[snap.zfsname for mountpoint, snap in lmap_mountpoint_snap if (mountpoint == mnt)and(snap.snapname==snapname)]
-#                print ",".join(lzfsname)
+                line=" %s %s" % (mnt if is_show_mountpoint else " " * len(mnt),snapname)
+#                line=" "+ mnt if is_show_mountpoint else " " * len(mnt)+" @%s" % snapname
+                l2print.append(line)
+#                print "", mnt if is_show_mountpoint else " " * len(mnt),
+#                print "@%s" % snapname
                 is_show_mountpoint = False
+    if l2print:
+        print "snapshot kept :"
+        print os.linesep.join(l2print)
 
 #
 # the main function

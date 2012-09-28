@@ -15,10 +15,13 @@ libcbr from https://github.com/briner/libcbr
 
 ----------------------------------------------
 HELP:
-dolly -h
 Usage: 
-    dolly clone [--mountpoint=<path>] [--sub-zfs-dir=<path>] [--snapshot-expiration-datetime=<iso8601>]
+    dolly clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
                 [--pre-hook=<path>] [--post-hook=<path>]
+                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...] [--zfs-dir-excl=<path>,...]
+    dolly clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
+                [--pre-hook=<path>] [--post-hook=<path>]
+                [--zfs-dir-incl=<path>,...]
     dolly kill [--mountpoint=<path>]
     dolly destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]
 
@@ -27,9 +30,18 @@ Options:
   --mountpoint=MOUNTPOINT
                         under which path the clone is
                         (default:"/dolly/backup")
-  --sub-zfs-dir=SUBZFSDIR2CLONE
-                        to clone only a subtree of the VFS. the value MUST be
-                        a zfs mountpoint (default:"/")
+  --sub-zfs-dir-incl=SUBZFSDIRINCL
+                        to include to the clone a subtree of the VFS. the
+                        value MUST be a zfs mountpoint,... (default:"/")
+  --sub-zfs-dir-excl=SUBZFSDIREXCL
+                        to exclude to the clone a subtree of the VFS. the
+                        value MUST be a zfs mountpoint,... (default:"")
+  --zfs-dir-excl=ZFSDIREXCL
+                        to include to the clone a ZFS. the value MUST be a zfs
+                        mountpoint,... (default:"")
+  --zfs-dir-incl=ZFSDIRINCL
+                        to exclude to the clone a ZFS. the value MUST be a zfs
+                        mountpoint,... (default:"")
   --snapshot-expiration-datetime=EXPIRATION_STR
                         the time we will keep the snapshot after the cloning
                         (default:"P7D")
@@ -44,8 +56,7 @@ Options:
                         2012.09.1975:"1975-08-19" )
   -v, --verbose         
   --no-email            do not send any email
-  -d, --debug           increase the level of debugging
-  
+  -d, --debug           increase the level of debugging  
 
 ----------------------------------------------
 USAGE:
@@ -135,5 +146,50 @@ dolly
   # mounted :
   #   /dolly/backup
 
- 
- 
+----------------------------------------------
+INFORMATION ABOUT INCLUDING AND EXCLUDING
+
+what is going to be cloned is:
+Σ included - Σ excluded
+
+the difference between :  --zfs-dir-excl
+                          --sub-zfs-dir-excl
+is that --sub* one will take list all the mountpoint who are under.
+let's consider this VFS where all the name with * are a zfs mountpoint.
+                 
+                 /\
+                /  \
+               /    \ 
+              /      \
+            usr   *export  
+            /\         /\ 
+           /  \       /  \
+       *local  \     /   *home
+         /\     \   /       /|\
+        /  \               / | \
+       /    \             /  |  \
+      /      \           /   |   \
+     /        \         /    |    \
+    /          \       /     |     \
+   /               *alice  *joe    *bob
+  /                  /\      /\      /\
+ /                  /  \    /  \    /  \
+
+then:
+--sub-zfs-dir-incl=/export/home
+equal:
+/export/home,/export/home/alice,/export/home/joe,/export/home/bob
+
+--sub-zfs-dir-incl=/export/home  --zfs-dir-incl=/usr/local
+equal:
+/export/home,/export/home/alice,/export/home/joe,/export/home/bob,/usr/local
+
+--sub-zfs-dir-incl=/export/home  --zfs-dir-incl=/usr/local --sub-zfs-dir-excl=/export/home
+equal:
+/export/home,/usr/local
+
+
+
+
+
+  
