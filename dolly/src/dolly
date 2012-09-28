@@ -2,12 +2,13 @@
 # -*- coding: utf-8 -*-
 
 # dowloaded at https://github.com/briner/dolly
+# all the documentation on https://github.com/briner/dolly/blob/master/dolly/README
 
 # zone-test2
 # rsync -a /home/briner/ws2/libcbr_0.2/src/libcbr/ su@zone-test2:/usr/local/lib/python/libcbr_0.2/libcbr/ & scp /home/briner/code/dolly/dolly/src/dolly su@zone-test2:/usr/local/bin ; date
 
 
-# import a
+# import
 #
 import os, sys
 sys.path.insert(0,'/usr/local/lib/python/libcbr_0.2/')
