@@ -733,12 +733,11 @@ if '__main__' == __name__:
     parser = OptionParser(usage='''
     %prog clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
                 [--pre-hook=<path>] [--post-hook=<path>]
-                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...] [--zfs-dir-excl=<path>,...]
-    %prog clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
-                [--pre-hook=<path>] [--post-hook=<path>]
-                [--zfs-dir-incl=<path>,...]
+                [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
+                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
     %prog kill [--mountpoint=<path>]
-    %prog destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]''')
+    %prog destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]
+    more info on : https://github.com/briner/dolly/blob/master/dolly/README''')
     parser.add_option("--mountpoint",                          dest="mountpoint",      default=DEFAULT_MOUNTPOINT
                      ,help='under which path the clone is (default:"%s")' % DEFAULT_MOUNTPOINT)
     #

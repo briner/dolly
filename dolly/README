@@ -18,10 +18,8 @@ HELP:
 Usage: 
     dolly clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
                 [--pre-hook=<path>] [--post-hook=<path>]
-                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...] [--zfs-dir-excl=<path>,...]
-    dolly clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
-                [--pre-hook=<path>] [--post-hook=<path>]
-                [--zfs-dir-incl=<path>,...]
+                [--zfs-dir-excl=<path>,...] [--zfs-dir-incl=<path>,...]
+                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
     dolly kill [--mountpoint=<path>]
     dolly destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]
 
