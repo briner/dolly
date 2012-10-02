@@ -15,13 +15,16 @@ libcbr from https://github.com/briner/libcbr
 
 ----------------------------------------------
 HELP:
+dolly -h
 Usage: 
     dolly clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
                 [--pre-hook=<path>] [--post-hook=<path>]
-                [--zfs-dir-excl=<path>,...] [--zfs-dir-incl=<path>,...]
-                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
+                [--zfs-dir-incl=<path>,...] [--sub-zfs-dir-incl=<path>,...]
+                [--zfs-dir-excl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
+                [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
     dolly kill [--mountpoint=<path>]
     dolly destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]
+    more info on : https://github.com/briner/dolly/blob/master/dolly/README
 
 Options:
   -h, --help            show this help message and exit
@@ -40,6 +43,12 @@ Options:
   --zfs-dir-incl=ZFSDIRINCL
                         to exclude to the clone a ZFS. the value MUST be a zfs
                         mountpoint,... (default:"")
+  --zfs-dir-dont-keep-snapshot=ZFSDIR_DONTKEEPSNAPSHOT
+                        zfs dir for which we will not keep the snapshot, the
+                        value MUST be a mountpoint,... (default:"")
+  --sub-zfs-dir-dont-keep-snapshot=SUBZFSDIR_DONTKEEPSNAPSHOT
+                        zfs dir for which we will not keep the snapshot, the
+                        value MUST be a mountpoint,... (default:"")
   --snapshot-expiration-datetime=EXPIRATION_STR
                         the time we will keep the snapshot after the cloning
                         (default:"P7D")
@@ -54,7 +63,7 @@ Options:
                         2012.09.1975:"1975-08-19" )
   -v, --verbose         
   --no-email            do not send any email
-  -d, --debug           increase the level of debugging  
+  -d, --debug           increase the level of debugging
 
 ----------------------------------------------
 USAGE:

@@ -52,9 +52,9 @@ DEFAULT_MOUNTPOINT='/dolly/backup'
 SUB_ZFS_DIR_INCL='/'     # or
 SUB_ZFS_DIR_EXCL=''     # or
 ZFS_DIR_EXCL=""
-# !!!attention!!!  ZFS_DIR_INCL can not be set if one of the SUB_ZFS_DIR_INCL,
-# SUB_ZFS_DIR_INCL, ZFS_DIR_EXCL are set. Look at how the "dolly -h" usage 
 ZFS_DIR_INCL=""
+ZFS_DIR_DONT_KEEP_SNAPSHOT=""
+SUB_ZFS_DIR_DONT_KEEP_SNAPSHOT=""
 
 #
 MUST_RELOAD=False
@@ -121,7 +121,7 @@ def destroy_dolly_snap(name):
 
     
 
-def destroy_old_snapshot_kept(now, mountpoint):
+def destroy_old_snapshot_kept_n_unwanted(now, mountpoint):
     my_logger.info('start destroy_old_snapshot_kept')
     my_logger.debug('destroy_old_snapshot_kept on lzpool(%s)' % ','.join([zpool.name for zpool in libcbr.zfs.get_lzpool()]))
     for zpool in libcbr.zfs.get_lzpool():
@@ -159,6 +159,11 @@ def destroy_old_snapshot_kept(now, mountpoint):
                 if snap_mnt!=mountpoint:
                     print_debug('destroy_old_snapshot_kept', "snap(%s) isn't related to the good mountpoint(%s = %s ): skip it" % (snap.name, snap_mnt, mountpoint ) )
                     continue
+            #
+            # remove the unwanted
+            if snap.duser_prop_value['ch.unige.dolly:do_not_keep'] == "yes":
+                lsnap_to_destroy.append(snap)              
+            #
             # not correct expiration
             expiration_str=snap.duser_prop_value['ch.unige:expiration_datetime']
             expiration_datetime=None
@@ -299,7 +304,7 @@ class Dolly(object):
 #        else:
 #            self.state='mounted'
     @classmethod
-    def create_from_demand(self, mountpoint, lzfs_2_clone, snapshot_expiration):
+    def create_from_demand(self, mountpoint, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot):
         '''
         create is used to dolly of a zone
         Attention you can not use both arguments isbackup and specific_snapname at the same time
@@ -311,7 +316,7 @@ class Dolly(object):
         # do the job
         dolly=Dolly(snapname, mountpoint)
 
-        dolly._snap_clone_n_mount(lzfs_2_clone, snapshot_expiration)
+        dolly._snap_clone_n_mount(lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot)
         return dolly
     @classmethod
     def create_from_FS(cls, mountpoint):
@@ -365,7 +370,7 @@ class Dolly(object):
     def replicate(self, tag=None, expiration_datetime=None):
         #TODO: create_from_FS
         pass
-    def _snap_clone_n_mount(self, lzfs_2_clone, snapshot_expiration ):
+    def _snap_clone_n_mount(self, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot ):
         #
         #
         dinfo={'mountpoint':self.mountpoint
@@ -408,7 +413,7 @@ class Dolly(object):
                                                                           ,title='hook_after_snapshot')
         #
         # snapshot
-        self._snap(snapshot_expiration)
+        self._snap(snapshot_expiration, lzfs_dontkeepsnapshot)
         #FN_HOOK_BEFORE_SNAPSHOT
         # clone & mount 
         my_logger.debug('clone  & mount dolly')
@@ -421,7 +426,7 @@ class Dolly(object):
         #        fun_umount.delete()
         release_lock()
         my_logger.info('snaped, cloned & mounted' )
-    def _snap(self, snapshot_expiration):
+    def _snap(self, snapshot_expiration, lzfs_dontkeepsnapshot):
         my_logger.info('dolly _snap(%s)' % self.snapname)
         #
         # snapshot lzpool recursively
@@ -439,14 +444,22 @@ class Dolly(object):
                     ,'ch.unige.dolly:mountpoint': self.mountpoint}
             zfs_of_zpool.do_snapshot(self.snapname, isrecursive=True, doption=doption)
         #
-        # remove snapshots which will not be used for cloning
-        my_logger.debug('Is there some snapshots which will not be used for cloning')
-        #
+        # refresh
         libcbr.zfs.populate_lsnapshot()
         libcbr.zfs.populate_lzfs()
-        #
         lsnap=libcbr.zfs.get_lsnapshot().by_snapname(self.snapname)
+        #
+        # add the property "ch.unige.dolly:do_not_keep_snapshot
+        my_logger.debug('Is there some snapshots which dont keep')
+        lzfsname_dontkeepsnapshot=[zfs.name for zfs in lzfs_dontkeepsnapshot]
+        for snap in lsnap:
+            if snap.zfs.name in lzfsname_dontkeepsnapshot:
+                libcbr.zfs.set_prop_value("ch.unige.dolly:do_not_keep", "yes", snap.name)
+        #
+        # remove snapshots which will not be used for cloning
+        my_logger.debug('Is there some snapshots which will not be used for cloning')
         lsnapname=[snap.name for snap in lsnap]
+        #
         lsnapshotname_necessary=["%s@%s" % (zfs.name, self.snapname) for zfs in self.lzfs]
         lsnapname_to_destroy=list( set(lsnapname)-set(lsnapshotname_necessary) )
         #
@@ -496,7 +509,7 @@ class Dolly(object):
             print_debug('_clone_n_mount', ' expiration',snapshot_expiration_str)
             print_debug('_clone_n_mount', '2 new_zfsname',  new_zfsname)
             #
-            #mount the clone
+            #mount the clonelzfs_dontkeepsnapshot
             doption={'mountpoint':mountpoint
                      ,'ch.unige:created_by': DOLLY_PREFIX
                      ,'ch.unige.dolly:zone' : ZONENAME
@@ -680,9 +693,9 @@ def populate_ldolly_mnt_n_snap():
     #
     _do_populate_ldolly=False
 
-def clone(mountpoint, lzfs_2_clone, snapshot_expiration):
-    unused_dolly=Dolly.create_from_demand(mountpoint, lzfs_2_clone, snapshot_expiration)
-    destroy_old_snapshot_kept(datetime.now(), mountpoint)
+def clone(mountpoint, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot):
+    unused_dolly=Dolly.create_from_demand(mountpoint, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot)
+    destroy_old_snapshot_kept_n_unwanted(datetime.now(), mountpoint)
 
 #def kill(expiration=None, mountpoint):
 def kill(mountpoint):
@@ -693,7 +706,7 @@ def kill(mountpoint):
         print msg
         sys.exit(2)
     dolly.unmount_n_unclone()
-    destroy_old_snapshot_kept(datetime.now(), mountpoint)
+    destroy_old_snapshot_kept_n_unwanted(datetime.now(), mountpoint)
 
 def list_dolly():
     lmnt=get_ldolly_mnt()
@@ -733,36 +746,42 @@ if '__main__' == __name__:
     parser = OptionParser(usage='''
     %prog clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
                 [--pre-hook=<path>] [--post-hook=<path>]
-                [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
-                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
+                [--zfs-dir-incl=<path>,...] [--sub-zfs-dir-incl=<path>,...]
+                [--zfs-dir-excl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
+                [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
     %prog kill [--mountpoint=<path>]
     %prog destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]
     more info on : https://github.com/briner/dolly/blob/master/dolly/README''')
-    parser.add_option("--mountpoint",                          dest="mountpoint",      default=DEFAULT_MOUNTPOINT
+    parser.add_option("--mountpoint",                      dest="mountpoint",      default=DEFAULT_MOUNTPOINT
                      ,help='under which path the clone is (default:"%s")' % DEFAULT_MOUNTPOINT)
     #
-    parser.add_option("--sub-zfs-dir-incl",                    dest="subzfsdirincl", default=SUB_ZFS_DIR_INCL
+    parser.add_option("--sub-zfs-dir-incl",                dest="subzfsdirincl",   default=SUB_ZFS_DIR_INCL
                      ,help='to include to the clone a subtree of the VFS. the value MUST be a zfs mountpoint,... (default:"%s")' % SUB_ZFS_DIR_INCL)
-    parser.add_option("--sub-zfs-dir-excl",                    dest="subzfsdirexcl", default=SUB_ZFS_DIR_EXCL
+    parser.add_option("--sub-zfs-dir-excl",                dest="subzfsdirexcl",   default=SUB_ZFS_DIR_EXCL
                      ,help='to exclude to the clone a subtree of the VFS. the value MUST be a zfs mountpoint,... (default:"%s")' % SUB_ZFS_DIR_EXCL)
     #
-    parser.add_option("--zfs-dir-excl",                    dest="zfsdirexcl", default=ZFS_DIR_EXCL
+    parser.add_option("--zfs-dir-excl",                    dest="zfsdirexcl",      default=ZFS_DIR_EXCL
                      ,help='to include to the clone a ZFS. the value MUST be a zfs mountpoint,... (default:"%s")' % ZFS_DIR_EXCL)
-    parser.add_option("--zfs-dir-incl",                    dest="zfsdirincl", default=ZFS_DIR_INCL
+    parser.add_option("--zfs-dir-incl",                    dest="zfsdirincl",      default=ZFS_DIR_INCL
                      ,help='to exclude to the clone a ZFS. the value MUST be a zfs mountpoint,... (default:"%s")' % ZFS_DIR_INCL)
     #
-    parser.add_option("--snapshot-expiration-datetime",        dest="expiration_str",      default=DEFAULT_SNAPSHOT_ISO8601_STR
+    parser.add_option("--zfs-dir-dont-keep-snapshot",      dest="zfsdir_dontkeepsnapshot", default=ZFS_DIR_DONT_KEEP_SNAPSHOT
+                     ,help='zfs dir for which we will not keep the snapshot, the value MUST be a mountpoint,... (default:"%s")' % ZFS_DIR_DONT_KEEP_SNAPSHOT)
+    parser.add_option("--sub-zfs-dir-dont-keep-snapshot",  dest="subzfsdir_dontkeepsnapshot", default=SUB_ZFS_DIR_DONT_KEEP_SNAPSHOT
+                     ,help='zfs dir for which we will not keep the snapshot, the value MUST be a mountpoint,... (default:"%s")' % SUB_ZFS_DIR_DONT_KEEP_SNAPSHOT)
+    #
+    parser.add_option("--snapshot-expiration-datetime",    dest="expiration_str",  default=DEFAULT_SNAPSHOT_ISO8601_STR
                      ,help='the time we will keep the snapshot after the cloning (default:"%s")' % DEFAULT_SNAPSHOT_ISO8601_STR)
-    parser.add_option("--pre-hook",                            dest="pre_hook",        default=FN_HOOK_BEFORE_SNAPSHOT
+    parser.add_option("--pre-hook",                        dest="pre_hook",        default=FN_HOOK_BEFORE_SNAPSHOT
                      ,help='hook script launched before cloning, e.g. stop the DB (default:"%s")' % FN_HOOK_BEFORE_SNAPSHOT)
-    parser.add_option("--post-hook",                           dest="post_hook",       default=FN_HOOK_AFTER_SNAPSHOT
+    parser.add_option("--post-hook",                       dest="post_hook",       default=FN_HOOK_AFTER_SNAPSHOT
                      ,help='hook script launched after cloning, e.g. start the DB (default:"%s")' % FN_HOOK_AFTER_SNAPSHOT )
-    parser.add_option("--as-we-were-in",                       dest="another_now",     default=None
+    parser.add_option("--as-we-were-in",                   dest="another_now",     default=None
                      ,help='expiration or duration in <iso8601> format. (eg: duration of 5day:"P5D", of 5min:"PT5M", at datetime 2012.09.1975:"1975-08-19" )')
-    parser.add_option("-v", "--verbose", action="store_true",  dest="isverbose",       default=False )    
-    parser.add_option("--no-email",      action="store_false", dest="send_email"
-                     ,help='do not send any email')
-    parser.add_option("-d", "--debug",   action="store_true",  dest="debug",           default=False
+    parser.add_option("-v", "--verbose",                   dest="isverbose",       default=False, action="store_true")    
+    parser.add_option("--no-email",                        dest="send_email",
+                      action="store_false", help='do not send any email')
+    parser.add_option("-d", "--debug",   action="store_true",  dest="debug",       default=False
                      ,help='increase the level of debugging')
     (options, args) = parser.parse_args()
     #
@@ -837,10 +856,10 @@ if '__main__' == __name__:
                         continue
                 lzfs_path_error.append(zfspath)
             return lzfs
-        lsubzfsincl=lzfs_path_2_lzfs(options.subzfsdirincl)
-        lsubzfsexcl=lzfs_path_2_lzfs(options.subzfsdirexcl)
         lzfsincl   =lzfs_path_2_lzfs(options.zfsdirincl)
         lzfsexcl   =lzfs_path_2_lzfs(options.zfsdirexcl)
+        lsubzfsincl=lzfs_path_2_lzfs(options.subzfsdirincl)
+        lsubzfsexcl=lzfs_path_2_lzfs(options.subzfsdirexcl)
         if lzfs_path_error:
             msg="this zfs path(%s) are not a mountpoint for a zfs, this can not be used for parameter in --*-zfs-*" % ",".join(lzfs_path_error)
             print_help_n_exit(msg)
@@ -854,7 +873,14 @@ if '__main__' == __name__:
         for subzfsexcl in lsubzfsexcl:
             ltmpzfs=libcbr.zfs.get_lzfs().under_path(subzfsexcl.get_mountpoint_from_lmount())
             set_zfs2clone=set_zfs2clone-set(ltmpzfs)
-        lzfs_2_clone=list(set_zfs2clone-set(lzfsexcl))  
+        lzfs_2_clone=list(set_zfs2clone-set(lzfsexcl))
+        #--
+        set_zfs_dontkeepsnapshot = set(lzfs_path_2_lzfs(options.zfsdir_dontkeepsnapshot))
+        lsubzfs_dontkeepsnapshot = lzfs_path_2_lzfs(options.subzfsdir_dontkeepsnapshot)
+        for subzfs_dontkeepsnapshot in lsubzfs_dontkeepsnapshot:
+            ltmpzfs=libcbr.zfs.get_lzfs().under_path(subzfs_dontkeepsnapshot.get_mountpoint_from_lmount())
+            set_zfs_dontkeepsnapshot=set_zfs_dontkeepsnapshot.union(set(ltmpzfs))
+        lzfs_dontkeepsnapshot=list(set_zfs_dontkeepsnapshot)
         #---
         if options.pre_hook:
             if os.path.isfile(options.pre_hook) and os.access(options.pre_hook, os.X_OK):
@@ -872,7 +898,7 @@ if '__main__' == __name__:
         elif args[0]=="clone":          # dolly create  [--mountpoint=<path>]
             if (options.another_now) or (len(args) >2):
                 print_help_n_exit()
-            clone(options.mountpoint, lzfs_2_clone, snapshot_expiration)
+            clone(options.mountpoint, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot)
         elif args[0]=="kill":         # dolly destroy [--mountpoint=<path>]
             if (options.another_now) or (len(args) >2):
                 print_help_n_exit()
@@ -880,7 +906,7 @@ if '__main__' == __name__:
         elif args[0]=="destroy-old-snapshot-kept":     # destroy-old-snapshot-kept [--mountpoint=<path>]  [--as-we-were-in=<iso8601>]
             if len(args) > 2:
                 print_help_n_exit()
-            destroy_old_snapshot_kept(another_now, options.mountpoint)
+            destroy_old_snapshot_kept_n_unwanted(another_now, options.mountpoint)
         else:
             print_help_n_exit()
     except SystemExit, inst_system_exit:
