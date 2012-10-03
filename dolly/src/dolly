@@ -675,6 +675,13 @@ def populate_ldolly_mnt_n_snap():
     #
     #
     _lmap_mountpoint_snap=[]
+    dsnap_lzfs={}
+    for zfs in libcbr.zfs.get_lzfs():
+        if zfs.origin:
+            if dsnap_lzfs.get(zfs.origin):
+                dsnap_lzfs.append(zfs)
+            else:
+                dsnap_lzfs[zfs.origin]=[zfs]
     for snap in libcbr.zfs.get_lsnapshot():
         if not snap.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX:
             print_debug('populate_ldolly', 'snap: snap(%s) not created by dolly : skip it' % snap.name)
@@ -683,8 +690,7 @@ def populate_ldolly_mnt_n_snap():
         if not dolly_mountpoint:
             print_debug('populate_ldolly', 'snap: snap(%s) as not a "ch.unige.dolly:mountpoint" : skip it' % snap.name)
             continue
-        lclone=snap.lclone
-        if lclone!=[]:
+        if dsnap_lzfs.get(snap): 
             print_debug('populate_ldolly', 'snap: snap(%s) as clone depending on it : skip it' % snap.name)
             continue
         print_debug('populate_ldolly', 'snap: add dolly_snapshot(%s) : add it' % snap.name)
@@ -751,6 +757,7 @@ if '__main__' == __name__:
                 [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
     %prog kill [--mountpoint=<path>]
     %prog destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]
+    
     more info on : https://github.com/briner/dolly/blob/master/dolly/README''')
     parser.add_option("--mountpoint",                      dest="mountpoint",      default=DEFAULT_MOUNTPOINT
                      ,help='under which path the clone is (default:"%s")' % DEFAULT_MOUNTPOINT)
