@@ -143,10 +143,17 @@ def destroy_old_snapshot_kept_n_unwanted(now, mountpoint):
         #
         # find all the snapshot, which are unrelated to a clone and created by dolly
         lsnap_to_destroy=[]
+        dsnap_lzfs={}
+        for zfs in libcbr.zfs.get_lzfs():
+            if zfs.origin:
+                if dsnap_lzfs.get(zfs.origin):
+                    dsnap_lzfs.append(zfs)
+                else:
+                    dsnap_lzfs[zfs.origin]=[zfs]
         for snap in libcbr.zfs.get_lsnapshot():
             # not cloned
-            if snap.lclone:
-                lclonename=[clone.name for clone in snap.lclone]
+            if dsnap_lzfs.get(snap):
+                lclonename=[clone.name for clone in dsnap_lzfs.get(snap)]
                 print_debug('destroy_old_snapshot_kept', 'snap(%s) have clone(%s): skip it' % (snap.name, ','.join(lclonename)))
                 continue 
             # not created by dolly
@@ -734,7 +741,7 @@ def list_dolly():
             lsnapname=[snapname for snapname in lsnapname if not snapname in lsnapname_active]
             lsnapname.sort(libcbr.mix.cmpAlphaNum)
             for snapname in lsnapname:
-                line=" %s %s" % (mnt if is_show_mountpoint else " " * len(mnt),snapname)
+                line=" %s @%s" % (mnt if is_show_mountpoint else " " * len(mnt),snapname)
 #                line=" "+ mnt if is_show_mountpoint else " " * len(mnt)+" @%s" % snapname
                 l2print.append(line)
 #                print "", mnt if is_show_mountpoint else " " * len(mnt),
