@@ -30,7 +30,7 @@ my_logger=logging.getLogger('MyLogger')
 
 #
 # definition DEBUG
-DEBUG=['lzfs','clean','_clone_n_mount', '_snap', 'unmount_n_unclone','destroy_old_snapshot_kept', 'populate','populate_ldolly']
+DEBUG=['lzfs','clean','_clone_n_mount', '_snap', 'unmount_n_unclone','dolly_garbage_collector', 'populate','populate_ldolly']
 DEBUG=[]
 def print_debug(*args):
     name=args[0]
@@ -173,7 +173,7 @@ def dolly_garbage_collector(now, mountpoint):
     my_logger.debug('dolly_garbage_collector on lzpool(%s)' % ','.join([zpool.name for zpool in libcbr.zfs.get_lzpool()]))
     for zpool in libcbr.zfs.get_lzpool():
         my_logger.info('destroy_old_snapshot_kept for zpool(%s)' % zpool.name)
-        print_debug ('clean', '====ZPOOL(%s)' % zpool.name)
+        print_debug ('dolly_garbage_collector', '====ZPOOL(%s)' % zpool.name)
         #
         # lock on zpool
         zpool_unlock=libcbr.stackfunction.stack_function.add(
@@ -204,12 +204,16 @@ def dolly_garbage_collector(now, mountpoint):
         #
         # repopulate all
         libcbr.zfs.populate_lzfs()
-        libcbr.zfs.populate_lzpool()
         libcbr.zfs.populate_lsnapshot()
         libcbr.mount.populate_lmount()
         #
         # find all the snapshot, which are unrelated to a clone and created by dolly
         lsnap_to_destroy=[]
+#        for zfs in libcbr.zfs.get_lzfs():
+#            if zfs.zpool.name==zpool.name:
+#                print "-----"
+#                print zfs.zpool, type(zfs.zpool), id(zfs.zpool)
+#                print zpool, type(zpool), id(zpool)
         lzfs_in_zpool=[zfs for zfs in libcbr.zfs.get_lzfs() if zfs.zpool==zpool]
         # dsnap_lzfs is created for not using zfs.lclone which is time consuming
         dsnap_lzfs={}
@@ -224,17 +228,17 @@ def dolly_garbage_collector(now, mountpoint):
             # not cloned
             if dsnap_lzfs.get(snap):
                 lclonename=[clone.name for clone in dsnap_lzfs.get(snap)]
-                print_debug('destroy_old_snapshot_kept', 'snap(%s) have clone(%s): skip it' % (snap.name, ','.join(lclonename)))
+                print_debug('dolly_garbage_collector', 'snap(%s) have clone(%s): skip it' % (snap.name, ','.join(lclonename)))
                 continue 
             # not created by dolly
             if snap.duser_prop_value.get('ch.unige:created_by')!=DOLLY_PREFIX :
-                print_debug('destroy_old_snapshot_kept', "snap(%s) isn't related to dolly: skip it" % snap.name )
+                print_debug('dolly_garbage_collector', "snap(%s) isn't related to dolly: skip it" % snap.name )
                 continue
             # not belonging to this mountpoint
             if mountpoint != "all":
                 snap_mnt=snap.duser_prop_value['ch.unige.dolly:mountpoint']
                 if snap_mnt!=mountpoint:
-                    print_debug('destroy_old_snapshot_kept', "snap(%s) isn't related to the good mountpoint(%s = %s ): skip it" % (snap.name, snap_mnt, mountpoint ) )
+                    print_debug('dolly_garbage_collector', "snap(%s) isn't related to the good mountpoint(%s = %s ): skip it" % (snap.name, snap_mnt, mountpoint ) )
                     continue
             # remove the unwanted
             if snap.duser_prop_value['ch.unige.dolly:do_not_keep'] == "yes":
@@ -248,16 +252,16 @@ def dolly_garbage_collector(now, mountpoint):
                 pass
             if not expiration_datetime:
                 expiration_repr=repr(snap.duser_prop_value['ch.unige:expiration_datetime'])
-                print_debug('destroy_old_snapshot_kept'
+                print_debug('dolly_garbage_collector'
                             ,"snap(%s) does not have a valid expiration(%s): skip it" % (snap.name, expiration_repr))
                 continue
             # not expired yet
             now_str=datetime2str(now)
             if now < expiration_datetime:
-                print_debug('destroy_old_snapshot_kept'
+                print_debug('dolly_garbage_collector'
                             ,"snap(%s) has not expired(now:%s < exp:%s) yet: skip it" % (snap.name, now_str, expiration_str))
                 continue
-            print_debug('destroy_old_snapshot_kept'
+            print_debug('dolly_garbage_collector'
                        ,"snap(%s) has expired(now:%s > exp:%s) yet: add it" % (snap.name, now_str, expiration_str))
             lsnap_to_destroy.append(snap)
         # destroy them
