@@ -1,0 +1,65 @@
+= environment =
+{{{
+TARGET=thesee
+DOLLY_DIR=/home/briner/code/dolly/dolly/src
+}}}
+= install dolly software =
+* libcbr
+{{{
+ssh su@${TARGET} "mkdir -p /usr/local/lib/python/libcbr_0.2/libcbr/"
+rsync -a /home/briner/code/libcbr/libcbr/src/libcbr/ \
+         su@${TARGET}:/usr/local/lib/python/libcbr_0.2/libcbr/
+}}}
+* dolly
+{{{
+scp ${DOLLY_DIR}/dolly su@${TARGET}:/usr/local/bin
+# pre/post dolly
+scp ${DOLLY_DIR}/on_zone/dolly_p* \
+    su@${TARGET}:/usr/local/bin;
+slogin su@${TARGET} chmod +x /usr/local/bin/dolly*
+}}}
+
+= tsm =
+* configure dsmc
+{{{
+scp ${DOLLY_DIR}/on_zone/dsm.sys su@${TARGET}:/opt/tivoli/tsm/client/ba/bin/
+}}}
+  * within the zone
+{{{
+vim /opt/tivoli/tsm/client/ba/bin/dsm.sys
+touch /opt/tivoli/tsm/client/ba/bin/include_exclude_backup
+# password
+mkpasswd -l 10 -s 0 > /opt/tivoli/tsm/client/ba/bin/password_backup
+cat /opt/tivoli/tsm/client/ba/bin/password_backup
+dsmc set password
+}}}
+* install the manifest
+{{{
+scp ${DOLLY_DIR}/on_zone/dsm.sys su@${TARGET}:/opt/tivoli/tsm/client/ba/bin/
+scp ${DOLLY_DIR}/on_zone/dsmc-sched su@${TARGET}:/lib/svc/method
+ssh su@${TARGET} chmod 555 /lib/svc/method/dsmc-sched
+ssh su@${TARGET} mkdir /var/svc/manifest/application/backup
+scp ${DOLLY_DIR}/on_zone/dsmc-sched.xml su@${TARGET}:/var/svc/manifest/application/backup
+ssh su@${TARGET} svccfg import /var/svc/manifest/application/backup/dsmc-sched.xml
+ssh su@${TARGET} svcadm enable dsmc-sched
+ssh su@${TARGET} svcs -p dsmc-sched
+}}}
+
+= crontab =
+* edit it
+{{{
+54 23  * * * /usr/local/bin/dolly clone ; svcadm enable dsmc-sched
+}}}
+
+= clear all =
+* invoke
+{{{
+svcadm disable dsmc-sched
+dolly kill
+
+dolly
+svcs -xv
+}}}
+
+= see also =
+http://adsm.org/forum/showthread.php?26844-unable-to-backup-new-FS-in-schedule-mode

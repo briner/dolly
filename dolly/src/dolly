@@ -91,6 +91,8 @@ FN_HOOK_AFTER_SNAPSHOT='/usr/local/bin/dolly_post_cmd' # attention stuff relativ
 #
 # definition ZONENAME
 ZONENAME=libcbr.zone.get_zonename()
+ZONE=libcbr.zone.get_zone_by_name(ZONENAME)
+LRECIPIENT=ZONE.lrecipient
 
 
 ###############################################################################
@@ -102,10 +104,10 @@ def is_zfs_mounted(zfs):
         print_debug('lzfs', ' ko : zfs(%s) has no mountpoint : skip it' % (zfs.name))
         return False
     return True
-def is_zfs_created_by_dolly(zfs):
-    is_created_by_dolly=zfs.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX
+def is_created_by_dolly(snap_or_zfs):
+    is_created_by_dolly=snap_or_zfs.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX
     if is_created_by_dolly:
-        print_debug('lzfs', ' ko : zfs(%s) was created by dolly : skip it' % (zfs.name))
+        print_debug('lzfs', ' ko : zfs(%s) was created by dolly : skip it' % (snap_or_zfs.name))
     return is_created_by_dolly
 def is_on_a_zone_when_in_globalzone(zfs):
     if ZONENAME == 'global':
@@ -116,7 +118,7 @@ def is_zfs_eligible(zfs):
     #
     if not is_zfs_mounted(zfs):
         return False
-    if is_zfs_created_by_dolly(zfs):
+    if is_created_by_dolly(zfs):
         return False
     if is_on_a_zone_when_in_globalzone(zfs):
         return False
@@ -192,7 +194,7 @@ def dolly_garbage_collector(now, mountpoint):
         lzfs=libcbr.zfs.get_lzfs()
         lzfs_in_zpool=[zfs for zfs in lzfs if zfs.zpool==zpool]
         for zfs in lzfs_in_zpool:
-            if not is_zfs_created_by_dolly(zfs):
+            if not is_created_by_dolly(zfs):
                 continue
             if is_zfs_mounted(zfs):
                 continue
@@ -224,6 +226,10 @@ def dolly_garbage_collector(now, mountpoint):
                 else:
                     dsnap_lzfs[zfs.origin]=[zfs]
         lsnap_in_zpool=[snap for snap in libcbr.zfs.get_lsnapshot() if snap.zfs.zpool == zpool]
+#        lsnap_in_zpool=[]
+#        for snap in libcbr.zfs.get_lsnapshot():
+#            if snap.zfs.zpool == zpool:
+#                lsnap_in_zpool.append(snap)
         for snap in lsnap_in_zpool:
             # not cloned
             if dsnap_lzfs.get(snap):
@@ -464,12 +470,12 @@ class Dolly(object):
             zfs_of_zpool.do_snapshot(self.snapname, isrecursive=True, doption=doption)
         #
         # refresh
-        libcbr.zfs.populate_lsnapshot()
         libcbr.zfs.populate_lzfs()
+        libcbr.zfs.populate_lsnapshot()
         lsnap=libcbr.zfs.get_lsnapshot().by_snapname(self.snapname)
         #
         # add the property "ch.unige.dolly:do_not_keep_snapshot
-        my_logger.debug('Is there some snapshots which dont keep')
+        my_logger.debug('Is there some snapshots which we wont keep')
         lzfsname_dontkeepsnapshot=[zfs.name for zfs in lzfs_dontkeepsnapshot]
         for snap in lsnap:
             if snap.zfs.name in lzfsname_dontkeepsnapshot:
@@ -632,7 +638,7 @@ class Dolly(object):
             lbody_email=['zone(%s)' % ZONENAME
                         ,' - hook cmd (%s)' % fn_hook
                         ]+ [' - %s' % line for line in lline_hook]
-            libcbr.notification.notify.add(lbody_email, lrecipient=self.lrecipient)
+            libcbr.notification.notify.add(lbody_email, LRECIPIENT)
 
 _ldolly_mnt=[]
 _lmap_mountpoint_snap=[]
@@ -667,7 +673,7 @@ def populate_ldolly_mnt_n_snap():
     #
     ldolly_mountpoint=[]
     for zfs in libcbr.zfs.get_lzfs():
-        if not is_zfs_created_by_dolly(zfs):
+        if not is_created_by_dolly(zfs):
             print_debug('populate_ldolly', 'mnt: zfs(%s) not created by dolly : skip it' % zfs.name)
             continue
         #---
@@ -680,10 +686,11 @@ def populate_ldolly_mnt_n_snap():
             print_debug('populate_ldolly', 'mnt: zfs(%s) as not a "ch.unige.dolly:mountpoint" : skip it' % zfs.name)
             continue
         #---
-        in_which_zonename=zfs.duser_prop_value.get('ch.unige.dolly:zone')
-        this_zonename=libcbr.zone.get_zonename()
-        if in_which_zonename != this_zonename:
-            print_debug('populate_ldolly', 'mnt: zfs(%s) does not belong to this zone(%s != %s) : skip it' % (zfs.name, in_which_zonename , this_zonename ))
+        if is_on_a_zone_when_in_globalzone(zfs):
+#        in_which_zonename=zfs.duser_prop_value.get('ch.unige.dolly:zone')
+#        this_zonename=libcbr.zone.get_zonename()
+#        if in_which_zonename != this_zonename:
+            print_debug('populate_ldolly', 'mnt: zfs(%s) does not belong to this zone : skip it' % zfs.name)
             continue
         #---
         print_debug('populate_ldolly', 'mnt: add dolly_mountpoint(%s) : add it' % dolly_mountpoint)
@@ -701,7 +708,8 @@ def populate_ldolly_mnt_n_snap():
             else:
                 dsnap_lzfs[zfs.origin]=[zfs]
     for snap in libcbr.zfs.get_lsnapshot():
-        if not snap.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX:
+        if not is_created_by_dolly(snap):
+#        if not snap.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX:
             print_debug('populate_ldolly', 'snap: snap(%s) not created by dolly : skip it' % snap.name)
             continue
         dolly_mountpoint=snap.duser_prop_value.get('ch.unige.dolly:mountpoint')
@@ -709,7 +717,10 @@ def populate_ldolly_mnt_n_snap():
             print_debug('populate_ldolly', 'snap: snap(%s) as not a "ch.unige.dolly:mountpoint" : skip it' % snap.name)
             continue
         if dsnap_lzfs.get(snap): 
-            print_debug('populate_ldolly', 'snap: snap(%s) as clone depending on it : skip it' % snap.name)
+            print_debug('populate_ldolly', 'snap: snap(%s) a clone depending on it : skip it' % snap.name)
+            continue
+        if is_on_a_zone_when_in_globalzone(snap.zfs):
+            print_debug('populate_ldolly', 'snap: zfs(%s) does not belong to this zone : skip it' % zfs.name)
             continue
         print_debug('populate_ldolly', 'snap: add dolly_snapshot(%s) : add it' % snap.name)
         _lmap_mountpoint_snap.append((dolly_mountpoint, snap))
@@ -949,10 +960,9 @@ if '__main__' == __name__:
         tb_format_exception=traceback.format_exception(exc_type, exc_value
                                                        ,exc_traceback)
         libcbr.log.logger.is_stdout_enabled=True
-        msg='error in dolly, freeing resources:'
-        my_logger.error(msg)
-        libcbr.stackfunction.stack_function.terminate_group()
-        msg='resources free'
+        my_logger.error('started error in dolly, freeing resources:')
+#        libcbr.stackfunction.stack_function.terminate_group()
+        my_logger.error('ended error in dolly, freeing resources')
         lmsg=[]
         lmsg.append('Error Stack will follow:')
         for line in tb_format_exception:
