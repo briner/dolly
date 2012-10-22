@@ -84,11 +84,6 @@ def datetime2str(date_time):
 ZFSDESTROY_R_CMD="zfs destroy -R %s"
 
 #
-# definition HOOKS        
-FN_HOOK_BEFORE_SNAPSHOT='/usr/local/bin/dolly_pre_cmd' # attention stuff relative_2_zonepath must not start with a '/' at the begginning
-FN_HOOK_AFTER_SNAPSHOT='/usr/local/bin/dolly_post_cmd' # attention stuff relative_2_zonepath must not start with a '/' at the begginning
-
-#
 # definition ZONENAME
 ZONENAME=libcbr.zone.get_zonename()
 ZONE=libcbr.zone.get_zone_by_name(ZONENAME)
@@ -428,23 +423,13 @@ class Dolly(object):
 #                                                          title='umount zone(%s), mountpoint_reldir(%s)' % (self.zone.zonename,
 #                                                                                                            self.mountpoint_reldir))
         #
-        # launch the hook before snapshot
-        self.launch_hook("before")
-        launch_hook_after_snapshot=libcbr.stackfunction.stack_function.add(self.launch_hook
-                                                                          ,args=["after"]
-                                                                          ,title='hook_after_snapshot')
-        #
         # snapshot
         self._snap(snapshot_expiration, lzfs_2_clone, lzfs_dontkeepsnapshot)
-        #FN_HOOK_BEFORE_SNAPSHOT
         # clone & mount 
         my_logger.debug('clone  & mount dolly')
         self._clone_n_mount(snapshot_expiration, lzfs_2_clone)
         #
-        # hook after snapshot
-        launch_hook_after_snapshot()
-        #
-        # release the loch
+        # release the lock
         self._release_lock()
 
         #
@@ -599,47 +584,6 @@ class Dolly(object):
         self._release_lock()    
         my_logger.info('unmount_n_unclone done' )
 
-    def launch_hook(self, before_or_after):
-        if before_or_after not in ['before', 'after']:
-            raise ValueError('arguement(before_or_after) in def(lauch_hook) must be in ["before", "after"]' )
-        my_logger.debug('enter in launch_hook')
-        fn_hook=FN_HOOK_BEFORE_SNAPSHOT if before_or_after=='before' else FN_HOOK_AFTER_SNAPSHOT
-        if not os.path.isfile(fn_hook):
-            my_logger.info('no hook(%s) %s snapshot' % (fn_hook, before_or_after))
-            return
-        #
-        my_logger.info('execute hook(%s) %s snapshot' % (fn_hook, before_or_after))
-        proc=subprocess.Popen(fn_hook, stdout=subprocess.PIPE, stderr=subprocess.PIPE, shell=True, cwd='/')
-        read_set=[proc.stdout, proc.stderr]
-        lline_hook=[]
-        send_email=False
-        while read_set:
-            rlist,unused_wlist,unused_xlist=select.select(read_set, [], [])
-            if proc.stdout in rlist:
-                stdout=proc.stdout.readline()
-                if stdout == '':
-                    read_set.remove(proc.stdout)
-                else:
-                    stdout=stdout.rstrip()
-                    msg='hook (out): %s' % stdout
-                    lline_hook.append(msg)
-                    my_logger.debug(msg)
-            if proc.stderr in rlist:
-                stderr=proc.stderr.readline()
-                if stderr == '':
-                    read_set.remove(proc.stderr)
-                else:
-                    send_email=True
-                    stderr=stderr.rstrip()
-                    msg='hook (err): %s' % stderr
-                    my_logger.error(msg)
-                    lline_hook.append(libcbr.log.getLogStr())
-        if send_email:
-            lbody_email=['zone(%s)' % ZONENAME
-                        ,' - hook cmd (%s)' % fn_hook
-                        ]+ [' - %s' % line for line in lline_hook]
-            libcbr.notification.notify.add(lbody_email, LRECIPIENT)
-
 _ldolly_mnt=[]
 _lmap_mountpoint_snap=[]
 _do_populate_ldolly=True
@@ -729,6 +673,7 @@ def populate_ldolly_mnt_n_snap():
     _do_populate_ldolly=False
 
 def clone(mountpoint, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot):
+    dolly_garbage_collector(datetime.now(), mountpoint)
     dolly_clean=libcbr.stackfunction.stack_function.add(dolly_garbage_collector
                                                        ,args= (datetime.now(), mountpoint)                                      
                                                        ,title="dolly_garbage_collector")
@@ -738,6 +683,7 @@ def clone(mountpoint, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot):
 def kill(mountpoint):
     dolly=Dolly.create_from_FS(mountpoint)
     if not dolly:
+        dolly_garbage_collector(datetime.now(), mountpoint)
         msg="unable to kill a dolly not mounted(%s), not a dolly" % mountpoint
         my_logger.error(msg)
         print msg
@@ -801,7 +747,6 @@ if '__main__' == __name__:
     from optparse import OptionParser
     parser = OptionParser(usage='''
     %prog clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
-                [--pre-hook=<path>] [--post-hook=<path>]
                 [--zfs-dir-incl=<path>,...] [--sub-zfs-dir-incl=<path>,...]
                 [--zfs-dir-excl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
                 [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
@@ -829,10 +774,6 @@ if '__main__' == __name__:
     # -- destroy-old-snapshot-kept
     parser.add_option("--snapshot-expiration-datetime",    dest="expiration_str",  default=DEFAULT_SNAPSHOT_ISO8601_STR
                      ,help='the time we will keep the snapshot after the cloning (default:"%s")' % DEFAULT_SNAPSHOT_ISO8601_STR)
-    parser.add_option("--pre-hook",                        dest="pre_hook",        default=FN_HOOK_BEFORE_SNAPSHOT
-                     ,help='hook script launched before cloning, e.g. stop the DB (default:"%s")' % FN_HOOK_BEFORE_SNAPSHOT)
-    parser.add_option("--post-hook",                       dest="post_hook",       default=FN_HOOK_AFTER_SNAPSHOT
-                     ,help='hook script launched after cloning, e.g. start the DB (default:"%s")' % FN_HOOK_AFTER_SNAPSHOT )
     parser.add_option("--as-we-were-in",                   dest="another_now",     default=None
                      ,help='expiration or duration in <iso8601> format. (eg: duration of 5day:"P5D", of 5min:"PT5M", at datetime 2012.09.1975:"1975-08-19" )')
     # -- commun
@@ -925,18 +866,6 @@ if '__main__' == __name__:
             set_zfs_dontkeepsnapshot=set_zfs_dontkeepsnapshot.union(set(ltmpzfs))
         lzfs_dontkeepsnapshot=list(set_zfs_dontkeepsnapshot)
         #---
-        if options.pre_hook:
-            if os.path.isfile(options.pre_hook) and os.access(options.pre_hook, os.X_OK):
-                FN_HOOK_BEFORE_SNAPSHOT=options.pre_hook
-            else:
-                print_help_n_exit("--pre-hook(%s) must be excutable")
-        if options.post_hook:
-            if os.path.isfile(options.post_hook) and os.access(options.post_hook, os.X_OK):
-                FN_HOOK_AFTER_SNAPSHOT=options.post_hook
-            else:
-                print_help_n_exit("--post-hook(%s) must be excutable")
-        #---
-#        print "\n".join(z.name for z in lzfs_2_clone)
         if len(args)==0:
             list_dolly()
         elif args[0]=="clone":          # dolly create  [--mountpoint=<path>]

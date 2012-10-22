@@ -18,7 +18,6 @@ HELP:
 dolly -h
 Usage: 
     dolly clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
-                [--pre-hook=<path>] [--post-hook=<path>]
                 [--zfs-dir-incl=<path>,...] [--sub-zfs-dir-incl=<path>,...]
                 [--zfs-dir-excl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
                 [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
@@ -52,11 +51,6 @@ Options:
   --snapshot-expiration-datetime=EXPIRATION_STR
                         the time we will keep the snapshot after the cloning
                         (default:"P7D")
-  --pre-hook=PRE_HOOK   hook script launched before cloning, e.g. stop the DB
-                        (default:"/usr/local/bin/dolly_pre_cmd")
-  --post-hook=POST_HOOK
-                        hook script launched after cloning, e.g. start the DB
-                        (default:"/usr/local/bin/dolly_post_cmd")
   --as-we-were-in=ANOTHER_NOW
                         expiration or duration in <iso8601> format. (eg:
                         duration of 5day:"P5D", of 5min:"PT5M", at datetime
