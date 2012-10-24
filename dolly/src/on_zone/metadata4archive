@@ -1,0 +1,81 @@
+#!/bin/bash
+
+set  -e ; # errexit	Abort script at first error, when a command exits with
+          # non-zero status (except in until or while loops, if-tests,
+          # list constructs)
+
+DIR_OF_META="/tmp/metadata4archive"
+INCLUDE_EXCLUDE=/opt/tivoli/tsm/client/ba/bin/include_exclude
+
+delete_metadata()
+{
+	if test -d ${DIR_OF_META} ; then
+		cd ${DIR_OF_META}
+		rm -f zpool_status.out
+		rm -f zpool_list.out
+		rm -f beadm_list_-d.out
+		rm -f zfs_get_-rHp_all.out
+		rm -f zfs_list_-t_filesystem.out
+		cd /
+		rmdir ${DIR_OF_META}
+	fi
+}
+
+write_metadata()
+{
+	delete_metadata
+	
+	mkdir ${DIR_OF_META}
+	cd  ${DIR_OF_META}
+	zpool status > zpool_status.out
+	zpool list > zpool_list.out
+	beadm list -d > beadm_list_-d.out
+	zfs get -rHp all > zfs_get_-rHp_all.out
+	zfs list -t filesystem > zfs_list_-t_filesystem.out
+}
+
+
+function usage () {
+	scriptname=$(basename ${0})
+   cat <<EOF
+Usage: $scriptname write | erase
+   -h   displays basic help
+   -d   dir where the metadata should be written
+EOF
+   exit 0
+}
+
+while getopts ":hd:" opt; do
+  case $opt in
+    h)
+      usage
+      ;;
+    d)
+      DIR_OF_META=$OPTARG
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
+
+shift $((OPTIND-1))
+
+if (( $# != 1 )) ; then
+  usage
+fi
+
+case $1 in
+   write)
+   	 write_metadata
+     ;; 
+   erase)
+     delete_metadata
+     ;;
+   *)
+     usage
+     ;;
+esac
+
+
+
