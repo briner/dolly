@@ -700,7 +700,7 @@ def list_dolly():
     if lmnt:
         print "mounted :"
         for dolly in lmnt:
-            print " %s @%s" % (dolly.mountpoint, dolly.snapname)
+            print "mounted %s @%s" % (dolly.mountpoint, dolly.snapname)
             lsnapname_active.append(dolly.snapname)
     #
     lmap_mountpoint_snap=get_lmap_mountpoint_snap()
