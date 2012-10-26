@@ -55,6 +55,8 @@ ZFS_DIR_EXCL=""
 ZFS_DIR_INCL=""
 ZFS_DIR_DONT_KEEP_SNAPSHOT=""
 SUB_ZFS_DIR_DONT_KEEP_SNAPSHOT=""
+ZPOOL_NAME_INCL=""
+ZPOOL_NAME_EXCL=""
 
 #
 MUST_RELOAD=False
@@ -241,6 +243,13 @@ def dolly_garbage_collector(now, mountpoint):
                 if snap_mnt!=mountpoint:
                     print_debug('dolly_garbage_collector', "snap(%s) isn't related to the good mountpoint(%s = %s ): skip it" % (snap.name, snap_mnt, mountpoint ) )
                     continue
+            # not belonging to this zone
+            ZONENAME
+            snap_zone=snap.duser_prop_value['ch.unige.dolly:zone']
+            if snap_zone != ZONENAME:
+                print_debug('dolly_garbage_collector'
+                           , "snap(%s) does not belong to this zone(%s) != snap_zone(%s): skip it" % (snap.name, ZONENAME, str(snap_zone)) )
+                continue
             # remove the unwanted
             if snap.duser_prop_value['ch.unige.dolly:do_not_keep'] == "yes":
                 lsnap_to_destroy.append(snap)              
@@ -725,6 +734,22 @@ def list_dolly():
         print os.linesep.join(l2print)
 
 
+def lzpool_2_lzfs(zpoolname_str, lzpoolname_error=[]):
+    lzpoolname=zpoolname_str.split(",")
+    lzfs=[]
+    for zpoolname in lzpoolname:
+        if not zpoolname:
+            continue
+        zpool=libcbr.zfs.get_lzpool().by_name(zpoolname)
+        if zpool:
+            print(repr(zpool))
+            print(repr(zpool.lzfs))
+            for zfs in zpool.lzfs:
+                if is_zfs_eligible(zfs):
+                    lzfs.append(zfs)
+        else:
+            lzpoolname_error.append(zpoolname)
+    return lzfs, lzpoolname_error
 
 def lzfs_path_2_lzfs(zfspath_str, lzfspath_error=[]):
     lzfs_path=zfspath_str.split(",")
@@ -747,8 +772,9 @@ if '__main__' == __name__:
     from optparse import OptionParser
     parser = OptionParser(usage='''
     %prog clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
-                [--zfs-dir-incl=<path>,...] [--sub-zfs-dir-incl=<path>,...]
-                [--zfs-dir-excl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
+                [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
+                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
+                [--zpool-name-incl=<path>,...] [--zpool-name-excl=<path>,...]
                 [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
     %prog kill [--mountpoint=<path>]
     %prog destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]
@@ -766,6 +792,11 @@ if '__main__' == __name__:
                      ,help='to include to the clone a ZFS. the value MUST be a zfs mountpoint,... (default:"%s")' % ZFS_DIR_EXCL)
     parser.add_option("--zfs-dir-incl",                    dest="zfsdirincl",      default=ZFS_DIR_INCL
                      ,help='to exclude to the clone a ZFS. the value MUST be a zfs mountpoint,... (default:"%s")' % ZFS_DIR_INCL)
+    #
+    parser.add_option("--zpool-name-excl",                    dest="zpoolnameexcl",      default=ZFS_DIR_EXCL
+                     ,help='to include to the clone every the zfs of a ZPOOL. the value MUST be a zpool name,... (default:"%s")' % ZPOOL_NAME_EXCL)
+    parser.add_option("--zpool-name-incl",                    dest="zpoolnameincl",      default=ZFS_DIR_INCL
+                     ,help='to exclude to the clone every ZFS of a ZPOOL. the value MUST be a zpool name,... (default:"%s")' % ZPOOL_NAME_INCL)
     #
     parser.add_option("--zfs-dir-dont-keep-snapshot",      dest="zfsdir_dontkeepsnapshot", default=ZFS_DIR_DONT_KEEP_SNAPSHOT
                      ,help='zfs dir for which we will not keep the snapshot, the value MUST be a mountpoint,... (default:"%s")' % ZFS_DIR_DONT_KEEP_SNAPSHOT)
@@ -840,15 +871,21 @@ if '__main__' == __name__:
         #---
         lzfs=libcbr.zfs.get_lzfs
         lzfspath_error=[]
+        lzpoolname_error=[]
         lzfsincl,    lzfspath_error = lzfs_path_2_lzfs(options.zfsdirincl,    lzfspath_error)
         lzfsexcl,    lzfspath_error = lzfs_path_2_lzfs(options.zfsdirexcl,    lzfspath_error)
         lsubzfsincl, lzfspath_error = lzfs_path_2_lzfs(options.subzfsdirincl, lzfspath_error)
         lsubzfsexcl, lzfspath_error = lzfs_path_2_lzfs(options.subzfsdirexcl, lzfspath_error)
+        lzfsincl_of_zpoolname,lzpoolname_error=lzpool_2_lzfs(options.zpoolnameincl, lzpoolname_error)
+        lzfsexcl_of_zpoolname,lzpoolname_error=lzpool_2_lzfs(options.zpoolnameexcl, lzpoolname_error)
         if lzfspath_error:
             msg="this zfs path(%s) are not a mountpoint for a zfs, this can not be used for parameter in --*-zfs-*" % ",".join(lzfspath_error)
             print_help_n_exit(msg)
+        if lzpoolname_error:
+            msg="this zpool name(%s) are not a zpool name, this can not be used for parameter in --zpool--*" % ",".join(lzpoolname_error)
+            print_help_n_exit(msg)
         #
-        set_zfs2clone=set(lzfsincl)
+        set_zfs2clone=set(lzfsincl+lzfsincl_of_zpoolname)
         for subzfsincl in lsubzfsincl:
             ltmpzfs=libcbr.zfs.get_lzfs().under_path(subzfsincl.get_mountpoint_from_lmount())
             ltmpzfs=filter(is_zfs_eligible,ltmpzfs)
@@ -857,7 +894,10 @@ if '__main__' == __name__:
             ltmpzfs=libcbr.zfs.get_lzfs().under_path(subzfsexcl.get_mountpoint_from_lmount())
             ltmpzfs=filter(is_zfs_eligible,ltmpzfs)
             set_zfs2clone=set_zfs2clone-set(ltmpzfs)
-        lzfs_2_clone=list(set_zfs2clone-set(lzfsexcl))
+        lzfs_2_clone=list(set_zfs2clone-set(lzfsexcl+lzfsexcl_of_zpoolname))
+        if not lzfs_2_clone:
+            msg="no zfs to clone with this parameter"
+            print_help_n_exit(msg)
         #--
         set_zfs_dontkeepsnapshot= set(lzfs_path_2_lzfs(options.zfsdir_dontkeepsnapshot)[0])
         lsubzfs_dontkeepsnapshot= lzfs_path_2_lzfs(options.subzfsdir_dontkeepsnapshot)[0]

@@ -12,7 +12,11 @@ IS_VERBOSE=0
 EMAIL_DEST="unix-bot@unige.ch"
 
 DOLLY_MOUNTPOINT=/dolly/backup
-DOLLY_CLONE_ARGS="--mountpoint=${DOLLY_MOUNTPOINT}"
+DOLLY_CLONE_ARGS_DEFAULT="--mountpoint=${DOLLY_MOUNTPOINT}"
+unset DOLLY_CLONE_ARGS_4_ZONENAME
+declare -A DOLLY_CLONE_ARGS_4_ZONENAME
+DOLLY_CLONE_ARGS_4_ZONENAME["global"]="${DOLLY_MOUNTPOINT} --zpool-name-incl=rpool --sub-zfs-dir-incl=\"\" "
+
 #DOLLY_CLONE_ARGS="--mountpoint=/dolly/mdba3  --sub-zfs-dir-incl=/ \
 # --sub-zfs-dir-excl=/oracle/dbacat,/oracle/dbatst1,/oracle/dbatst2,/oracle/dbatst3"
 
@@ -181,7 +185,11 @@ pre()
     write_metadata4archive
     echo_verbose " ✔"
     echo_verbose -n "create the clone…"
-    /usr/local/bin/dolly clone ${CLONE_ARGS}
+    if test -n "${DOLLY_CLONE_ARGS_4_ZONENAME[$(zonename)]}" ; then
+    	/usr/local/bin/dolly clone ${DOLLY_CLONE_ARGS_4_ZONENAME[$(zonename)]}
+    else
+	    /usr/local/bin/dolly clone ${DOLLY_CLONE_ARGS_DEFAULT}
+	fi
     echo_verbose " ✔"
     echo_verbose -n "delete metadata for archive…"
     delete_metadata4archive
