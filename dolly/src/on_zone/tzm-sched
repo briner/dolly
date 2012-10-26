@@ -96,22 +96,51 @@ echo_verbose()
 write_include_exclude_4_tsm()
 {
 	{
-		echo "* include exclude generated for ${DOLLY_MNT}"
-		# exclude fs which are in both origin & clone from the original
+		echo "* include/exclude generated for dolly_mountpoint ${DOLLY_MOUNTPOINT} by tzm-sched"
+		#
+        # EXCLUDE fs which are in both origin & clone from the original
+        #   -1- take the ZFS belonging to this zonename
+        #   -2- keep the one with the same dolly_mounpoint
+        #   -3- remove the snapshots
+        #   -4- keep the one wich are mounted
+        #   -5- find the ZFS they were originated from
+        #   -6- find their mountpoint
+        #   -7- do an exclude.fs for tsm
 		echo "* exclude fs which are in both origin & clone from the original"
-		zfs get -H ch.unige.dolly:mountpoint | ggrep -P "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 |  grep -v @   \
+		zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
+        | gxargs --no-run-if-empty | zfs get -H ch.unige.dolly:mountpoint | ggrep -P "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
+        | grep -v "@"  \
 		| gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
 	 	| gxargs --no-run-if-empty zfs get -H origin | cut -f3 | cut -d "@" -f1 \
 	 	| gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3 \
 	 	| gsed 's|\(.*\)|exclude.fs \1|'
-	
-		# exclude fs which are in other clone
-		echo "* exclude fs which are in other clone"
-		zfs get -H ch.unige:created_by | ggrep -P "\tdolly\t" | cut -f1 | grep -v @ \
+        #
+		# EXCLUDE fs which are in other "dolly clone" in the same zonename
+	    #   -1- take the ZFS belonging to this zonename
+	    #   -2- remove the one with the same dolly_mounpoint
+	    #   -3- remove the snapshots
+	    #   -4- keep the one wich are mounted
+	    #   -5- find their mountpoint
+	    #   -6- do an exclude.fs for tsm
+		echo "* exclude fs which are in other \"dolly clone\" in the same zonename"
+        zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
 	 	| gxargs --no-run-if-empty zfs get -H "ch.unige.dolly:mountpoint" | ggrep -Pv "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
+        | grep -v "@" \
+		| gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
 	 	| gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
 	 	| gsed 's|\(.*\)|exclude.fs \1|'
-
+        #
+		# EXCLUDE fs which are in other zone
+        #   -1- take the ZFS which are zoned
+        #   -2- remove the snapshots
+        #   -3- keep the one wich are mounted
+        #   -4- find their mountpoint
+        #   -5- do an exclude.fs for tsm
+        zfs get -H zoned | ggrep -P "\ton\t" | cut -f1 \
+        | grep -v "@"  \
+		| gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+	 	| gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
+	 	| gsed 's|\(.*\)|exclude.fs \1|'
 	} > ${INCLUDE_EXCLUDE}
 }
 
@@ -160,10 +189,9 @@ pre()
     #
     # enable dsm-sched
     echo_verbose -n " check if dsmc-sched enabled…"
-    svcadm enable dsmc-sched:default
-    sleep 2
+    svcadm enable -s dsmc-sched:default
     if ! svcs -H dsmc-sched:default | ggrep -q '^online ' ; then
-        echo "\n✘ dsmc-sched should be enabled after a 'svcadm enable dsmc-sched:default' ✘"
+        echo "\n✘ dsmc-sched should be enabled after a 'svcadm enable -s dsmc-sched:default' ✘"
         exit 3
     fi
     echo_verbose " ✔"
@@ -207,15 +235,14 @@ post()
 	echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
 	env SHELL=/bin/bash at 'now + 1minutes' << EOF_AT
 export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
-svcadm disable dsmc-sched
-sleep 2
+svcadm disable -s dsmc-sched
 if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
     echo "the \"at\" jobs from \"tzm-sched\" was unable to stop the dsmc-sched" | mailx -s "[$(hostname)] TSM Backup" ${EMAIL_DEST}
     exit 3
 fi
 EOF_AT
 
-	echo 'svcadm disable dsmc-sched' | at 'now + 1minutes'
+	echo 'svcadm disable -s dsmc-sched' | at 'now + 1minutes'
 	#
 	#
     echo_verbose exit post

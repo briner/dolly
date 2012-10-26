@@ -1,6 +1,6 @@
 = environment =
 {{{
-TARGET=thesee
+TARGET=canzone1
 DOLLY_DIR=/home/briner/code/dolly/dolly/src
 }}}
 = install dolly software =
