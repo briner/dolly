@@ -119,6 +119,8 @@ def is_zfs_eligible(zfs):
         return False
     if is_on_a_zone_when_in_globalzone(zfs):
         return False
+    if zfs.type != "filesystem":
+        return False
     return True
 
 def destroy_dolly_snap(name):
@@ -208,11 +210,6 @@ def dolly_garbage_collector(now, mountpoint):
         #
         # find all the snapshot, which are unrelated to a clone and created by dolly
         lsnap_to_destroy=[]
-#        for zfs in libcbr.zfs.get_lzfs():
-#            if zfs.zpool.name==zpool.name:
-#                print "-----"
-#                print zfs.zpool, type(zfs.zpool), id(zfs.zpool)
-#                print zpool, type(zpool), id(zpool)
         lzfs_in_zpool=[zfs for zfs in libcbr.zfs.get_lzfs() if zfs.zpool==zpool]
         # dsnap_lzfs is created for not using zfs.lclone which is time consuming
         dsnap_lzfs={}
@@ -440,7 +437,6 @@ class Dolly(object):
         #
         # release the lock
         self._release_lock()
-
         #
         #        fun_umount.delete()
         my_logger.info("ended dolly _snap_clone_n_mount")
@@ -640,9 +636,6 @@ def populate_ldolly_mnt_n_snap():
             continue
         #---
         if is_on_a_zone_when_in_globalzone(zfs):
-#        in_which_zonename=zfs.duser_prop_value.get('ch.unige.dolly:zone')
-#        this_zonename=libcbr.zone.get_zonename()
-#        if in_which_zonename != this_zonename:
             print_debug('populate_ldolly', 'mnt: zfs(%s) does not belong to this zone : skip it' % zfs.name)
             continue
         #---
@@ -662,7 +655,6 @@ def populate_ldolly_mnt_n_snap():
                 dsnap_lzfs[zfs.origin]=[zfs]
     for snap in libcbr.zfs.get_lsnapshot():
         if not is_created_by_dolly(snap):
-#        if not snap.duser_prop_value.get('ch.unige:created_by')==DOLLY_PREFIX:
             print_debug('populate_ldolly', 'snap: snap(%s) not created by dolly : skip it' % snap.name)
             continue
         dolly_mountpoint=snap.duser_prop_value.get('ch.unige.dolly:mountpoint')
@@ -724,10 +716,7 @@ def list_dolly():
             lsnapname.sort(libcbr.mix.cmpAlphaNum)
             for snapname in lsnapname:
                 line=" %s @%s" % (mnt if is_show_mountpoint else " " * len(mnt),snapname)
-#                line=" "+ mnt if is_show_mountpoint else " " * len(mnt)+" @%s" % snapname
                 l2print.append(line)
-#                print "", mnt if is_show_mountpoint else " " * len(mnt),
-#                print "@%s" % snapname
                 is_show_mountpoint = False
     if l2print:
         print "snapshot kept :"
@@ -742,8 +731,6 @@ def lzpool_2_lzfs(zpoolname_str, lzpoolname_error=[]):
             continue
         zpool=libcbr.zfs.get_lzpool().by_name(zpoolname)
         if zpool:
-            print(repr(zpool))
-            print(repr(zpool.lzfs))
             for zfs in zpool.lzfs:
                 if is_zfs_eligible(zfs):
                     lzfs.append(zfs)
@@ -761,7 +748,7 @@ def lzfs_path_2_lzfs(zfspath_str, lzfspath_error=[]):
         if zfs:
             if is_zfs_eligible(zfs):
                 lzfs.append(zfs)
-                continue          
+                continue
         lzfspath_error.append(zfspath)
     return lzfs, lzfspath_error
 
@@ -777,7 +764,7 @@ if '__main__' == __name__:
                 [--zpool-name-incl=<path>,...] [--zpool-name-excl=<path>,...]
                 [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
     %prog kill [--mountpoint=<path>]
-    %prog destroy-old-snapshot-kept [--mountpoint=<path>|all] [--as-we-were-in=<iso8601>]
+    %prog destroy-old-snapshot-kept [--mountpoint=all|<path>] [--as-we-were-in=<iso8601>]
     
     more info on : https://github.com/briner/dolly/blob/master/dolly/README''')
     parser.add_option("--mountpoint",                      dest="mountpoint",      default=DEFAULT_MOUNTPOINT
@@ -846,7 +833,7 @@ if '__main__' == __name__:
         my_logger.info('dolly start in the __main__ place')
         #
         # parse the arguments
-        #---
+        #--- another_now
         another_now=datetime.now()
         if options.another_now:
             datetime_or_duration=iso8601_parse(options.another_now)
@@ -856,7 +843,7 @@ if '__main__' == __name__:
                 another_now=datetime_or_duration            
             if another_now < datetime.now():
                 print_help_n_exit('--as-we-were-in can not point to the past')
-        #---
+        #--- snapshot_expiration
         snapshot_expiration=None
         expiration_or_duration=iso8601_parse(options.expiration_str)
         if isinstance(expiration_or_duration, relativedelta):
@@ -867,9 +854,7 @@ if '__main__' == __name__:
             print_help_n_exit('--snapshot-expiration-datetime(%s) can not point to the past' % options.expiration_str)
         if not snapshot_expiration:
             print_help_n_exit('--snapshot-expiration-datetime error')
-
-        #---
-        lzfs=libcbr.zfs.get_lzfs
+        #--- list of zfs     
         lzfspath_error=[]
         lzpoolname_error=[]
         lzfsincl,    lzfspath_error = lzfs_path_2_lzfs(options.zfsdirincl,    lzfspath_error)
@@ -930,7 +915,7 @@ if '__main__' == __name__:
                                                        ,exc_traceback)
         libcbr.log.logger.is_stdout_enabled=True
         my_logger.error('started error in dolly, freeing resources:')
-#        libcbr.stackfunction.stack_function.terminate_group()
+        libcbr.stackfunction.stack_function.terminate_group()
         my_logger.error('ended error in dolly, freeing resources')
         lmsg=[]
         lmsg.append('Error Stack will follow:')

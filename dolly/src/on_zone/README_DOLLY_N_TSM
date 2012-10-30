@@ -1,6 +1,6 @@
 = environment =
 {{{
-TARGET=canzone1
+TARGET=zone-test2
 DOLLY_DIR=/home/briner/code/dolly/dolly/src
 }}}
 = install dolly software =
@@ -13,10 +13,8 @@ rsync -a /home/briner/code/libcbr/libcbr/src/libcbr/ \
 * dolly
 {{{
 scp ${DOLLY_DIR}/dolly su@${TARGET}:/usr/local/bin
-# pre/post dolly
-scp ${DOLLY_DIR}/on_zone/dolly_p* \
-    su@${TARGET}:/usr/local/bin;
-slogin su@${TARGET} chmod +x /usr/local/bin/dolly*
+scp ${DOLLY_DIR}/on_zone/tzm-sched{,.conf} su@${TARGET}:/usr/local/bin
+slogin su@${TARGET} chmod +x /usr/local/bin/{dolly,tzm-sched}
 }}}
 
 = tsm =
@@ -48,7 +46,7 @@ ssh su@${TARGET} svcs -p dsmc-sched
 = crontab =
 * edit it
 {{{
-54 23  * * * /usr/local/bin/dolly clone ; svcadm enable dsmc-sched
+54 23  * * * /usr/local/bin/tzm-sched pre
 }}}
 
 = clear all =

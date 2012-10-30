@@ -15,12 +15,8 @@ DOLLY_MOUNTPOINT=/dolly/backup
 DOLLY_CLONE_ARGS_DEFAULT="--mountpoint=${DOLLY_MOUNTPOINT}"
 unset DOLLY_CLONE_ARGS_4_ZONENAME
 declare -A DOLLY_CLONE_ARGS_4_ZONENAME
-DOLLY_CLONE_ARGS_4_ZONENAME["global"]="${DOLLY_MOUNTPOINT} --zpool-name-incl=rpool --sub-zfs-dir-incl=\"\" "
+DOLLY_CLONE_ARGS_4_ZONENAME["global"]="--mountpoint=${DOLLY_MOUNTPOINT} --zpool-name-incl=rpool --sub-zfs-dir-incl="
 
-#DOLLY_CLONE_ARGS="--mountpoint=/dolly/mdba3  --sub-zfs-dir-incl=/ \
-# --sub-zfs-dir-excl=/oracle/dbacat,/oracle/dbatst1,/oracle/dbatst2,/oracle/dbatst3"
-
-DSMC_ERROR_RE=' ANS[[:alnum:]]{5} '
 DSMC_ERROR_OK_RE=' ANS(1898I|1696W|1115W|1149E|1809W|2200I|2201I|2820E|1484I) '
 #  ANS1898I   TSM has processed the specified number of files
 #  ANS1696W   Objects were excluded from backup because the file system file-system-name is excluded from backup or archive processing.
@@ -31,6 +27,11 @@ DSMC_ERROR_OK_RE=' ANS(1898I|1696W|1115W|1149E|1809W|2200I|2201I|2820E|1484I) '
 #  ANS2201I   Inspecting cache (memory efficient)
 #  ANS2820E   An interrupt has occurred. The current operation will end and the client will shut down.
 #  ANS1484I   Schedule log pruning finished successfully.
+
+test -f /usr/local/bin/tzm-sched.conf && source /usr/local/bin/tzm-sched.conf
+
+DSMC_ERROR_RE=' ANS[[:alnum:]]{5} '
+
 
 mailx_utf-8()
 # mailx_utf-8 is a sort of mailx which support utf-8
@@ -169,7 +170,7 @@ pre()
     # check that dsm-sched is disabled
     echo_verbose -n "check dsmc scheduler & dolly…"
     if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
-        echo -e "\n✘ dsmc-sched should be disabled ✘"
+        echo -e "\n✘ dsmc-sched should be disabled ✘" 
         exit 1
     fi
     #
@@ -220,7 +221,7 @@ post()
 	# Parse the log and rotate it
 	echo_verbose -n "parse the log and rotate it…"
 	body_email=$(mktemp -p /tmp tzm-sched-email.XXXXXX)
-	gegrep "${DSMC_ERROR_RE}" /var/log/dsmsched.log | gegrep -v ${DSMC_ERROR_OK_RE} > ${body_email}
+	gegrep "${DSMC_ERROR_RE}" /var/log/dsmsched.log | gegrep -v "${DSMC_ERROR_OK_RE}" | cat > ${body_email}
 	logadm  -f /dev/null -C10 -N /var/log/dsmsched.log
 	echo_verbose " ✔"
 	if test -s ${body_email} ; then
@@ -229,14 +230,9 @@ post()
 	#
 	# send email
 	echo_verbose -n "send email"
-	{
-		echo 'TSM Backup : fin du backup. Le log se trouve dans : /var/log/dsmsched.log...'
-		if test -s ${body_email} ; then
-			cat ${body_email}
-		else
-			echo 'no error'
-		fi
-	} | mailx_utf-8 -s "[$(hostname)] TSM Backup" ${EMAIL_DEST}
+	if test -s ${body_email} ; then
+	    cat ${body_email} | mailx_utf-8 -s "[$(hostname)] TSM Backup" ${EMAIL_DEST}
+	fi
 	rm ${body_email}
 	#
 	# disable dsmc-sched
@@ -245,12 +241,10 @@ post()
 export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
 svcadm disable -s dsmc-sched
 if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
-    echo "the \"at\" jobs from \"tzm-sched\" was unable to stop the dsmc-sched" | mailx -s "[$(hostname)] TSM Backup" ${EMAIL_DEST}
+    echo "the \"at\" jobs from \"tzm-sched\" was unable to stop the dsmc-sched" | mailx -s "[$(hostname | cut -d "." -f1)] TSM Backup" ${EMAIL_DEST}
     exit 3
 fi
 EOF_AT
-
-	echo 'svcadm disable -s dsmc-sched' | at 'now + 1minutes'
 	#
 	#
     echo_verbose exit post
