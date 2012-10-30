@@ -254,18 +254,30 @@ usage () {
 	scriptname=$(basename ${0})
    cat <<EOF
 Usage: $scriptname pre-tsm | post-tsm
+       $scriptname [-d] write_metadata4archive | delete_metadata4archive
    -h   displays basic help
+   -v   verbose
+   -d   directory where the metadata are written
+
+- pre-tsm/post-tsm are to be invoked if you want to backup with a scheduler
+in mind
+
+- write_metadata4archive/delete_metadata4archive are a convenient way to access
+this function out of the use of pre-tsm/post-tsm
 EOF
    exit 0
 }
 
-while getopts ":vh" opt; do
+while getopts ":vhd:" opt; do
   case $opt in
     v)
       IS_VERBOSE=1
       ;;
     h)
       usage
+      ;;
+    d)
+      DIR_OF_META=$OPTARG
       ;;
     *)
       usage
@@ -283,8 +295,20 @@ case $1 in
    pre)
      pre
      ;;
+   pre-tsm)
+     pre
+     ;;
    post)
      post
+     ;;
+   post-tsm)
+     post
+     ;;
+   write_metadata4archive)
+     write_metadata4archive
+     ;;
+   delete_metadata4archive)
+     delete_metadata4archive
      ;;
    *)
      usage

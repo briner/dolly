@@ -1,0 +1,13 @@
+-dolly: put the mountpoint option as an argument so that :
+    dolly clone [<mountpoint_path>]
+                [--snapshot-expiration-datetime=<iso8601>]
+                [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
+                [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
+                [--zpool-name-incl=<path>,...] [--zpool-name-excl=<path>,...]
+                [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
+
+-dolly: modify the way include or exclude works, so that the include/exclude take in
+account the order of the argument in the command line
+
+-tzm-sched: the crontab send a better subject name instead of a
+  'Output from "cron" command'

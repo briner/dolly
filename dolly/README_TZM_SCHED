@@ -1,0 +1,91 @@
+tzm-sched is a script which use tsm (Tivoli Storage Manager or dsmc)
+and the snapshot of ZFS filesystem. Unfortunately, as dsmc is unable to backup ZFS from their
+snapshots in an scheduler way. So here it is our solution.
+
+The way we implemented this, is the following:
+tzm-sched pre-tsm in the crontab and will do
+ - stop services
+ - write the metadata (zfs list; zpool list…)
+ - do the snapshots and  create a clone of the VFS(Virtual FS) mounted
+   on /dolly/backup with (dolly clone)
+ - start the services
+ - generate a include/exclude file which will be used by dsmc-sched
+ - enable the scheduler daemon with (svcadm enable -s dsmc-sched)
+ 
+dsmc will start backuping when the server told him to do (scheduler way)
+
+tzm-sched post-tsm called within the POSTSchedulecmd will do:
+ - undo the clone with "dolly kill" and destroy 7 days old snapshots
+ - rotate the log and parse the log to send an email if it find errors on it
+ - disable dsm-sched with a (echo "svcadm disable -s dsmc-sched" | at 'now + 1minutes')
+
+This tool was mainly created to decrease the time of the down time when backuping
+and to benefit the property of the zfs snapshot : quick and a coherent FS where
+all the files are snapshoted at the same time.
+
+If you find this script useful, consider a recommendation on LinkedIn with my
+email briner@infomaniak.ch. :)
+
+----------------------------------------------
+DEPENDENCIES:
+libcbr from https://github.com/briner/libcbr
+
+----------------------------------------------
+INSTALLATION
+------------
+# environment
+TARGET=root@zone-test2
+DOLLY_DIR=/home/briner/code/dolly/dolly/src
+
+#libcbr
+ssh ${TARGET} "mkdir -p /usr/local/lib/python/libcbr_0.2/libcbr/"
+rsync -a /home/briner/code/libcbr/libcbr/src/libcbr/ \
+         ${TARGET}:/usr/local/lib/python/libcbr_0.2/libcbr/
+# dolly
+scp ${DOLLY_DIR}/dolly ${TARGET}:/usr/local/bin
+scp ${DOLLY_DIR}/on_zone/tzm-sched{,.conf} ${TARGET}:/usr/local/bin
+slogin ${TARGET} chmod +x /usr/local/bin/{dolly,tzm-sched}
+
+#TSM
+# install TSM as usual
+# configure dsmc
+scp ${DOLLY_DIR}/on_zone/dsm.sys ${TARGET}:/opt/tivoli/tsm/client/ba/bin
+slogin ${TARGET}
+  vim /opt/tivoli/tsm/client/ba/bin/dsm.sys
+  touch /opt/tivoli/tsm/client/ba/bin/include_exclude_backup
+  # test dsmc
+  dsmc
+  quit
+exit
+
+# dsmc-sched : the manifest part
+scp ${DOLLY_DIR}/on_zone/dsm.sys ${TARGET}:/opt/tivoli/tsm/client/ba/bin/
+scp ${DOLLY_DIR}/on_zone/dsmc-sched ${TARGET}:/lib/svc/method
+ssh ${TARGET} chmod 555 /lib/svc/method/dsmc-sched
+ssh ${TARGET} mkdir /var/svc/manifest/application/backup
+scp ${DOLLY_DIR}/on_zone/dsmc-sched.xml ${TARGET}:/var/svc/manifest/application/backup
+ssh ${TARGET} svccfg import /var/svc/manifest/application/backup/dsmc-sched.xml
+ssh ${TARGET} svcadm enable dsmc-sched
+ssh ${TARGET} svcs -p dsmc-sched
+
+# CRONTAB
+54 23  * * * /usr/local/bin/tzm-sched pre-tsm
+
+# LAST PREPARATION
+# for "/usr/local/bin/tzm-sched pre-tsm" to work, we need no dolly clone
+# and dsmc-sched disable and do not forget to enable the scheduler
+dolly
+# no mountpoint should be mounted
+# otherwise kill the clone
+dolly kill
+
+svcadm disable -s dsmc-sched
+svcs dsmc-sched
+  # STATE          STIME    FMRI
+  # disabled        9:13:41 svc:/application/backup/dsmc-sched:default
+
+svcs dsmc-sched
+}}}
+
+= see also =
+http://adsm.org/forum/showthread.php?26844-unable-to-backup-new-FS-in-schedule-mode
