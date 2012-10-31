@@ -220,10 +220,6 @@ def dolly_garbage_collector(now, mountpoint):
                 else:
                     dsnap_lzfs[zfs.origin]=[zfs]
         lsnap_in_zpool=[snap for snap in libcbr.zfs.get_lsnapshot() if snap.zfs.zpool == zpool]
-#        lsnap_in_zpool=[]
-#        for snap in libcbr.zfs.get_lsnapshot():
-#            if snap.zfs.zpool == zpool:
-#                lsnap_in_zpool.append(snap)
         for snap in lsnap_in_zpool:
             # not cloned
             if dsnap_lzfs.get(snap):

@@ -43,7 +43,8 @@ rsync -a /home/briner/code/libcbr/libcbr/src/libcbr/ \
          ${TARGET}:/usr/local/lib/python/libcbr_0.2/libcbr/
 # dolly
 scp ${DOLLY_DIR}/dolly ${TARGET}:/usr/local/bin
-scp ${DOLLY_DIR}/on_zone/tzm-sched{,.conf} ${TARGET}:/usr/local/bin
+scp ${DOLLY_DIR}/on_zone/tzm-sched ${TARGET}:/usr/local/bin
+scp ${DOLLY_DIR}/on_zone/tzm-sched.conf ${TARGET}:/usr/local/bin
 slogin ${TARGET} chmod +x /usr/local/bin/{dolly,tzm-sched}
 
 #TSM

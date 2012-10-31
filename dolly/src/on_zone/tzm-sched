@@ -6,7 +6,7 @@ set  -e ; # errexit	Abort script at first error, when a command exits with
 export PATH="/bin:/usr/bin:/usr/sbin:/usr/local/bin"
 
 DIR_OF_META="/metadata4archive"
-INCLUDE_EXCLUDE=/opt/tivoli/tsm/client/ba/bin/include_exclude
+INCLUDE_EXCLUDE=/opt/tivoli/tsm/client/ba/bin/include_exclude_backup
 IS_VERBOSE=0
 
 EMAIL_DEST="unix-bot@unige.ch"
@@ -36,19 +36,19 @@ DSMC_ERROR_RE=' ANS[[:alnum:]]{5} '
 mailx_utf-8()
 # mailx_utf-8 is a sort of mailx which support utf-8
 {
-	SUBJECT="no subject given"
-	while getopts ":s:" opt; do
-  		case $opt in
-    		s)
-      			SUBJECT=$OPTARG
-      			;;
-    		*)
-      			usage
-      			;;
-  		esac
-	done
-	shift $((OPTIND-1))
-	RECIPIENTS="$@"   
+    SUBJECT="no subject given"
+    while getopts ":s:" opt; do
+        case $opt in
+            s)
+                SUBJECT=$OPTARG
+                ;;
+            *)
+                usage
+                ;;
+        esac
+    done
+    shift $((OPTIND-1))
+    RECIPIENTS="$@"   
     {
         cat << EOF
 From: unix-bot@unige.ch
@@ -66,29 +66,28 @@ delete_metadata4archive()
 # a tool which write down stuff that we can not see in a regular backup
 #
 {
-	if test -d ${DIR_OF_META} ; then
-		cd ${DIR_OF_META}
-		rm -f zpool_status.out
-		rm -f zpool_list.out
-		rm -f beadm_list_-d.out
-		rm -f zfs_get_-rHp_all.out
-		rm -f zfs_list_-t_filesystem.out
-		cd /
-		rmdir ${DIR_OF_META}
-	fi
+    if test -d ${DIR_OF_META} ; then
+        cd ${DIR_OF_META}
+        rm -f zpool_status.out
+        rm -f zpool_list.out
+        rm -f beadm_list_-d.out
+       rm -f zfs_get_-rHp_all.out
+        rm -f zfs_list_-t_filesystem.out
+     cd /
+       rmdir ${DIR_OF_META}
+    fi
 }
 
 write_metadata4archive()
 {
-	delete_metadata4archive
-	
-	mkdir ${DIR_OF_META}
-	cd  ${DIR_OF_META}
-	zpool status > zpool_status.out
-	zpool list > zpool_list.out
-	beadm list -d > beadm_list_-d.out
-	zfs get -rHp all > zfs_get_-rHp_all.out
-	zfs list -t filesystem > zfs_list_-t_filesystem.out
+    delete_metadata4archive
+    mkdir ${DIR_OF_META}
+    cd  ${DIR_OF_META}
+    zpool status > zpool_status.out
+    zpool list > zpool_list.out
+    beadm list -d > beadm_list_-d.out
+    zfs get -rHp all > zfs_get_-rHp_all.out
+    zfs list -t filesystem > zfs_list_-t_filesystem.out
 }
 
 echo_verbose()
@@ -100,9 +99,10 @@ echo_verbose()
 
 write_include_exclude_4_tsm()
 {
-	{
-		echo "* include/exclude generated for dolly_mountpoint ${DOLLY_MOUNTPOINT} by tzm-sched"
-		#
+    {
+        echo "* include/exclude file generated for "
+        echo "* dolly_mountpoint(${DOLLY_MOUNTPOINT}) by tzm-sched"
+        #
         # EXCLUDE fs which are in both origin & clone from the original
         #   -1- take the ZFS belonging to this zonename
         #   -2- keep the one with the same dolly_mounpoint
@@ -111,31 +111,31 @@ write_include_exclude_4_tsm()
         #   -5- find the ZFS they were originated from
         #   -6- find their mountpoint
         #   -7- do an exclude.fs for tsm
-		echo "* exclude fs which are in both origin & clone from the original"
-		zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
-        | gxargs --no-run-if-empty | zfs get -H ch.unige.dolly:mountpoint | ggrep -P "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
-        | grep -v "@"  \
-		| gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
-	 	| gxargs --no-run-if-empty zfs get -H origin | cut -f3 | cut -d "@" -f1 \
-	 	| gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3 \
-	 	| gsed 's|\(.*\)|exclude.fs \1|'
-        #
-		# EXCLUDE fs which are in other "dolly clone" in the same zonename
-	    #   -1- take the ZFS belonging to this zonename
-	    #   -2- remove the one with the same dolly_mounpoint
-	    #   -3- remove the snapshots
-	    #   -4- keep the one wich are mounted
-	    #   -5- find their mountpoint
-	    #   -6- do an exclude.fs for tsm
-		echo "* exclude fs which are in other \"dolly clone\" in the same zonename"
+        echo "* exclude fs which are in both origin & clone from the original"
         zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
-	 	| gxargs --no-run-if-empty zfs get -H "ch.unige.dolly:mountpoint" | ggrep -Pv "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
-        | grep -v "@" \
-		| gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
-	 	| gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
-	 	| gsed 's|\(.*\)|exclude.fs \1|'
+        | gxargs --no-run-if-empty zfs get -H ch.unige.dolly:mountpoint | ggrep -P "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
+        | grep -v "@"  \
+        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+        | gxargs --no-run-if-empty zfs get -H origin | cut -f3 | cut -d "@" -f1 \
+        | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3 \
+        | gsed 's|\(.*\)|exclude.fs \1|'
         #
-		# EXCLUDE fs which are in other zone
+        # EXCLUDE fs which are in other "dolly clone" in the same zonename
+        #   -1- take the ZFS belonging to this zonename
+        #   -2- remove the one with the same dolly_mounpoint
+        #   -3- remove the snapshots
+        #   -4- keep the one wich are mounted
+        #   -5- find their mountpoint
+        #   -6- do an exclude.fs for tsm
+        echo "* exclude fs which are in other \"dolly clone\" in the same zonename"
+        zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
+        | gxargs --no-run-if-empty zfs get -H "ch.unige.dolly:mountpoint" | ggrep -Pv "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
+        | grep -v "@" \
+        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+        | gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
+        | gsed 's|\(.*\)|exclude.fs \1|'
+        #
+        # EXCLUDE fs which are in other zone
         #   -1- take the ZFS which are zoned
         #   -2- remove the snapshots
         #   -3- keep the one wich are mounted
@@ -143,10 +143,10 @@ write_include_exclude_4_tsm()
         #   -5- do an exclude.fs for tsm
         zfs get -H zoned | ggrep -P "\ton\t" | cut -f1 \
         | grep -v "@"  \
-		| gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
-	 	| gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
-	 	| gsed 's|\(.*\)|exclude.fs \1|'
-	} > ${INCLUDE_EXCLUDE}
+        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+        | gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
+        | gsed 's|\(.*\)|exclude.fs \1|'
+    } > ${INCLUDE_EXCLUDE}
 }
 
 start-service()
@@ -165,7 +165,7 @@ stop_service()
 
 pre()
 {
-	echo_verbose enter pre
+	echo_verbose enter pre-tsm
 	#
     # check that dsm-sched is disabled
     echo_verbose -n "check dsmc scheduler & dolly…"
@@ -187,14 +187,20 @@ pre()
     echo_verbose " ✔"
     echo_verbose -n "create the clone…"
     if test -n "${DOLLY_CLONE_ARGS_4_ZONENAME[$(zonename)]}" ; then
-    	/usr/local/bin/dolly clone ${DOLLY_CLONE_ARGS_4_ZONENAME[$(zonename)]}
+        /usr/local/bin/dolly clone ${DOLLY_CLONE_ARGS_4_ZONENAME[$(zonename)]}
     else
-	    /usr/local/bin/dolly clone ${DOLLY_CLONE_ARGS_DEFAULT}
-	fi
+        /usr/local/bin/dolly clone ${DOLLY_CLONE_ARGS_DEFAULT}
+    fi
     echo_verbose " ✔"
     echo_verbose -n "delete metadata for archive…"
     delete_metadata4archive
     echo_verbose " ✔"
+    #
+    # write the include exclude file
+    echo_verbose -n "write the include exclude file…"
+    write_include_exclude_4_tsm
+    echo_verbose " ✔"
+    
     #
     # enable dsm-sched
     echo_verbose -n " check if dsmc-sched enabled…"
@@ -206,38 +212,39 @@ pre()
     echo_verbose " ✔"
     #
     #    
-    echo_verbose exit pre
+    echo_verbose exit pre-tsm
 }
 
 post()
 {
-	echo_verbose enter post
-	#
-	# dolly kill
-	echo_verbose -n "kill the clone…"
-	/usr/local/bin/dolly kill --mountpoint=${DOLLY_MOUNTPOINT}
-	echo_verbose " ✔"
-	#
-	# Parse the log and rotate it
-	echo_verbose -n "parse the log and rotate it…"
-	body_email=$(mktemp -p /tmp tzm-sched-email.XXXXXX)
-	gegrep "${DSMC_ERROR_RE}" /var/log/dsmsched.log | gegrep -v "${DSMC_ERROR_OK_RE}" | cat > ${body_email}
-	logadm  -f /dev/null -C10 -N /var/log/dsmsched.log
-	echo_verbose " ✔"
-	if test -s ${body_email} ; then
-	    echo_verbose "✘ error occured during the dsmc-sched ✘"
-	fi
-	#
-	# send email
-	echo_verbose -n "send email"
-	if test -s ${body_email} ; then
-	    cat ${body_email} | mailx_utf-8 -s "[$(hostname)] TSM Backup" ${EMAIL_DEST}
-	fi
-	rm ${body_email}
-	#
-	# disable dsmc-sched
-	echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
-	env SHELL=/bin/bash at 'now + 1minutes' << EOF_AT
+    echo_verbose enter post-tsm
+    #
+    # dolly kill
+    echo_verbose -n "kill the clone…"
+    /usr/local/bin/dolly kill --mountpoint=${DOLLY_MOUNTPOINT}
+    echo_verbose " ✔"
+    #
+    # Parse the log and rotate it
+    echo_verbose -n "parse the log and rotate it…"
+    body_email=$(mktemp -p /tmp tzm-sched-email.XXXXXX)
+    gegrep "${DSMC_ERROR_RE}" /var/log/dsmsched.log | gegrep -v "${DSMC_ERROR_OK_RE}" | cat > ${body_email}
+    logadm  -f /dev/null -C10 -N /var/log/dsmsched.log
+    echo_verbose " ✔"
+    if test -s ${body_email} ; then
+        echo_verbose "✘ error occured during the dsmc-sched ✘"
+    fi
+    #
+    # send email
+    echo_verbose -n "send email…"
+    if test -s ${body_email} ; then
+        cat ${body_email} | mailx_utf-8 -s "[$(hostname)] TSM Backup" ${EMAIL_DEST}
+    fi
+    rm ${body_email}
+    echo_verbose " ✔"
+    #
+    # disable dsmc-sched
+    echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
+    env SHELL=/bin/bash at 'now + 1minutes' << EOF_AT
 export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
 svcadm disable -s dsmc-sched
 if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
@@ -247,7 +254,7 @@ fi
 EOF_AT
 	#
 	#
-    echo_verbose exit post
+    echo_verbose exit post-tsm
 }
 
 usage () {
