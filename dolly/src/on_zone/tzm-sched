@@ -17,6 +17,7 @@ unset DOLLY_CLONE_ARGS_4_ZONENAME
 declare -A DOLLY_CLONE_ARGS_4_ZONENAME
 DOLLY_CLONE_ARGS_4_ZONENAME["global"]="--mountpoint=${DOLLY_MOUNTPOINT} --zpool-name-incl=rpool --sub-zfs-dir-incl="
 
+DSMC_ERROR_RE='( ANS[[:alnum:]]{5} |No schedule returned from server.)'
 DSMC_ERROR_OK_RE=' ANS(1898I|1696W|1115W|1149E|1809W|2200I|2201I|2820E|1484I) '
 #  ANS1898I   TSM has processed the specified number of files
 #  ANS1696W   Objects were excluded from backup because the file system file-system-name is excluded from backup or archive processing.
@@ -28,10 +29,9 @@ DSMC_ERROR_OK_RE=' ANS(1898I|1696W|1115W|1149E|1809W|2200I|2201I|2820E|1484I) '
 #  ANS2820E   An interrupt has occurred. The current operation will end and the client will shut down.
 #  ANS1484I   Schedule log pruning finished successfully.
 
+
+
 test -f /usr/local/bin/tzm-sched.conf && source /usr/local/bin/tzm-sched.conf
-
-DSMC_ERROR_RE=' ANS[[:alnum:]]{5} '
-
 
 mailx_utf-8()
 # mailx_utf-8 is a sort of mailx which support utf-8
