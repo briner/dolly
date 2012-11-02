@@ -60,12 +60,14 @@ slogin ${TARGET}
 exit
 
 # dsmc-sched : the manifest part
-scp ${DOLLY_DIR}/on_zone/dsm.sys ${TARGET}:/opt/tivoli/tsm/client/ba/bin/
-scp ${DOLLY_DIR}/on_zone/dsmc-sched ${TARGET}:/lib/svc/method
-ssh ${TARGET} chmod 555 /lib/svc/method/dsmc-sched
-ssh ${TARGET} mkdir /var/svc/manifest/application/backup
-scp ${DOLLY_DIR}/on_zone/dsmc-sched.xml ${TARGET}:/var/svc/manifest/application/backup
-ssh ${TARGET} svccfg import /var/svc/manifest/application/backup/dsmc-sched.xml
+ssh ${TARGET} mkdir -p /lib/svc/method/site
+scp ${DOLLY_DIR}/on_zone/dsmc-sched ${TARGET}:/lib/svc/method/site
+ssh ${TARGET} chmod 555 /lib/svc/method/site/dsmc-sched
+#
+ssh ${TARGET} mkdir -p /var/svc/manifest/site/application/backup
+scp ${DOLLY_DIR}/on_zone/dsmc-sched.xml ${TARGET}:/var/svc/manifest/site/application/backup
+#
+ssh ${TARGET} svcadm restart svc:/system/manifest-import
 ssh ${TARGET} svcadm enable dsmc-sched
 ssh ${TARGET} svcs -p dsmc-sched
 

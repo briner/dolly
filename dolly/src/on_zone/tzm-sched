@@ -111,7 +111,7 @@ write_include_exclude_4_tsm()
         #   -5- find the ZFS they were originated from
         #   -6- find their mountpoint
         #   -7- do an exclude.fs for tsm
-        echo "* exclude fs which are in both origin & clone from the original"
+        echo "* EXCLUDE ZFS which are in both origin & clone from the original"
         zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
         | gxargs --no-run-if-empty zfs get -H ch.unige.dolly:mountpoint | ggrep -P "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
         | grep -v "@"  \
@@ -127,7 +127,7 @@ write_include_exclude_4_tsm()
         #   -4- keep the one wich are mounted
         #   -5- find their mountpoint
         #   -6- do an exclude.fs for tsm
-        echo "* exclude fs which are in other \"dolly clone\" in the same zonename"
+        echo "* EXCLUDE ZFS which are in other \"dolly clone\" in the same zonename"
         zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
         | gxargs --no-run-if-empty zfs get -H "ch.unige.dolly:mountpoint" | ggrep -Pv "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
         | grep -v "@" \
@@ -141,7 +141,7 @@ write_include_exclude_4_tsm()
         #   -3- keep the one wich are mounted
         #   -4- find their mountpoint
         #   -5- do an exclude.fs for tsm
-        echo "* EXCLUDE fs which are in other zone"
+        echo "* EXCLUDE ZFS which are in other zone"
         if test "$(zonename)" == "global" ; then
             zfs get -H zoned | ggrep -P "\ton\t" | cut -f1 \
             | grep -v "@"  \
