@@ -32,7 +32,7 @@
         <exec_method
                 type='method'
                 name='start'
-                exec='/lib/svc/method/dsmc-sched'
+                exec='/lib/svc/method/site/dsmc-sched'
                 timeout_seconds='60'>
                 <method_context>
                         <method_credential user='root' group='root' />
