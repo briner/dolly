@@ -9,7 +9,7 @@ DIR_OF_META="/metadata4archive"
 INCLUDE_EXCLUDE=/opt/tivoli/tsm/client/ba/bin/include_exclude_backup
 IS_VERBOSE=0
 
-EMAIL_DEST="unix-bot@unige.ch"
+EMAIL_DEST="unixbot"
 
 DOLLY_MOUNTPOINT=/dolly/backup
 DOLLY_CLONE_ARGS_DEFAULT="--mountpoint=${DOLLY_MOUNTPOINT}"
