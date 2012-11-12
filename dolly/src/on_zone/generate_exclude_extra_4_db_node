@@ -10,7 +10,7 @@
 
 shopt -s extglob
 
-EMAIL_DEST="unixbot and dbadinf"
+EMAIL_DEST="cedric.brinerr@unige.ch"
 
 EXCLUDE_PATH_GENERATED=/opt/tivoli/tsm/client/ba/bin/exclude_extra_4_db_node
 ZFS_MOUNTPOINT_NO_DOLLY_PATH=/var/run/mountpoint_nodolly
@@ -39,7 +39,8 @@ if ! gdiff -q  ${tmp_mountpoint_nodolly} ${ZFS_MOUNTPOINT_NO_DOLLY_PATH} > /dev/
         echo "*"
         echo "* exclude the mountpoint in /oracle except the /oracle/app"
         cat ${ZFS_MOUNTPOINT_NO_DOLLY_PATH} \
-        |  ggrep -E "($(echo /oracle/!(app) | tr -s " " "|"))"
+        | ggrep -E "($(echo /oracle/!(app) | tr -s " " "|"))" \
+        | sed "s|^|exclude.fs |"
         echo "*"
         echo "* exclude every possible mountpoint behind a dolly"
         for mountpoint in $(ls -1 /oracle/  | grep -v app) ; do
