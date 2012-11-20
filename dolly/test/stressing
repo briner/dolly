@@ -2,55 +2,63 @@
 while true ; do
   echo -------------
   date
-  echo -n clone…
-  dolly clone --tag=aui --snapshot-expiration-datetime=PT2M
+  echo -n clone… one
+  dolly clone /dolly/one --tag=one --snapshot-expiration-datetime=PT2M
+  if test $? -ne 0 ; then break ; fi
   echo ✔
-  sleep 15
-  echo ----
+  echo --
   date
-  echo -n kill…
-  dolly kill
+  echo -n kill… one
+  dolly kill /dolly/one
+  if test $? -ne 0 ; then date ; break ; fi
   echo ✔
-  sleep 15
 done
 
 
 while true ; do
   echo -------------
   date
-  echo -n clone…
-  dolly clone --mountpoint=/dolly/number2 --tag=aui --snapshot-expiration-datetime=PT2M
+  echo -n clone… number2
+  dolly clone /dolly/number2 --tag=number2 --snapshot-expiration-datetime=PT2M
+  if test $? -ne 0 ; then break ; fi
   echo ✔
-  sleep 15
-  echo ----
+  echo --
   date
-  echo -n kill…
-  dolly kill --mountpoint=/dolly/number2
+  echo -n kill… number2
+  dolly kill /dolly/number2
+  if test $? -ne 0 ; then date ; break ; fi
   echo ✔
-  sleep 15
 done
 
 
 while true ; do
-  
-  sleep 15 ; date ; echo @stress1_local
+  echo @stress1_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress1_local"
-  sleep 15 ; date ; echo @stress2_local
+  if test $? -ne 0 ; then break ; fi
+  date ; echo @stress2_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress2_local"
-  sleep 15 ; date ; echo @stress3_local
+  if test $? -ne 0 ; then break ; fi
+  date ; echo @stress3_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress3_local"
-  sleep 15 ; date ; echo @stress4_local
+  if test $? -ne 0 ; then break ; fi
+  date ; echo @stress4_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress4_local"
-  sleep 15 ; date ; echo @stress5_local
+  if test $? -ne 0 ; then break ; fi
+  date ; echo @stress5_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress5_local"
-  sleep 15 ; date ; echo @stress6_local
+  if test $? -ne 0 ; then break ; fi
+  date ; echo @stress6_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress6_local"
-  sleep 15 ; date ; echo @stress7_local
+  if test $? -ne 0 ; then break ; fi
+  date ; echo @stress7_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress7_local"
-  sleep 15 ; date ; echo @stress8_local
+  if test $? -ne 0 ; then break ; fi
+  date ; echo @stress8_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress8_local"
-  sleep 15 ; date ; echo @stress9_local
+  if test $? -ne 0 ; then break ; fi
+  date ; echo @stress9_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress9_local"
+  if test $? -ne 0 ; then break ; fi
 done
 
 
@@ -60,51 +68,52 @@ while true ; do
   date
   echo -n clone…
   dolly clone --tag=global --snapshot-expiration-datetime=PT2M --sub-zfs-dir-incl="" --zpool-name-incl=rpool
+  if test $? -ne 0 ; then break ; fi
   echo ✔
-  sleep 15
   echo ----
   date
   echo -n kill…
   dolly kill
+  if test $? -ne 0 ; then break ; fi
   echo ✔
-  sleep 15
 done
 
 while true ; do 
 echo -------------
   date
   echo -n clone…
-  dolly clone --tag=global --mountpoint=/dolly/number2 --snapshot-expiration-datetime=PT2M --sub-zfs-dir-incl="" --zpool-name-incl=rpool
+  dolly clone /dolly/number2 --tag=global --snapshot-expiration-datetime=PT2M --sub-zfs-dir-incl="" --zpool-name-incl=rpool
+  if test $? -ne 0 ; then break ; fi
   echo ✔
-  sleep 15
   echo ----
   date
   echo -n kill…
-  dolly kill --mountpoint=/dolly/number2
+  dolly kill /dolly/number2
+  if test $? -ne 0 ; then break ; fi
   echo ✔
-  sleep 15
 done
 
 
 while true ; do
-  sleep 15 ; date ; echo @stress1_global
+  date ; echo @stress1_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress1_global"
-  sleep 15 ; date ; echo @stress2_global
+  sleep 5 ; date ; echo @stress2_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress2_global"
-  sleep 15 ; date ; echo @stress3_global
+  sleep 5 ; date ; echo @stress3_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress3_global"
-  sleep 15 ; date ; echo @stress4_global
+  sleep 5 ; date ; echo @stress4_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress4_global"
-  sleep 15 ; date ; echo @stress5_global
+  sleep 5 ; date ; echo @stress5_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress5_global"
-  sleep 15 ; date ; echo @stress6_global
+  sleep 5 ; date ; echo @stress6_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress6_global"
-  sleep 15 ; date ; echo @stress7_global
+  sleep 5 ; date ; echo @stress7_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress7_global"
-  sleep 15 ; date ; echo @stress8_global
+  sleep 5 ; date ; echo @stress8_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress8_global"
-  sleep 15 ; date ; echo @stress9_global
+  sleep 5 ; date ; echo @stress9_global
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress9_global"
+  sleep 5
 done
 
 

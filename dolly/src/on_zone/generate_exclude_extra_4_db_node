@@ -10,7 +10,7 @@
 
 shopt -s extglob
 
-EMAIL_DEST="cedric.brinerr@unige.ch"
+EMAIL_DEST="unix-bot,dba-dinf@unige.ch"
 
 EXCLUDE_PATH_GENERATED=/opt/tivoli/tsm/client/ba/bin/exclude_extra_4_db_node
 ZFS_MOUNTPOINT_NO_DOLLY_PATH=/var/run/mountpoint_nodolly

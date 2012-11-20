@@ -9,13 +9,13 @@ DIR_OF_META="/metadata4archive"
 INCLUDE_EXCLUDE=/opt/tivoli/tsm/client/ba/bin/include_exclude_backup
 IS_VERBOSE=0
 
-EMAIL_DEST="unixbot"
+EMAIL_DEST="unix-bot@unige.ch"
 
 DOLLY_MOUNTPOINT=/dolly/backup
-DOLLY_CLONE_ARGS_DEFAULT="--mountpoint=${DOLLY_MOUNTPOINT}"
+DOLLY_CLONE_ARGS_DEFAULT="${DOLLY_MOUNTPOINT}"
 unset DOLLY_CLONE_ARGS_4_ZONENAME
 declare -A DOLLY_CLONE_ARGS_4_ZONENAME
-DOLLY_CLONE_ARGS_4_ZONENAME["global"]="--mountpoint=${DOLLY_MOUNTPOINT} --zpool-name-incl=rpool --sub-zfs-dir-incl="
+DOLLY_CLONE_ARGS_4_ZONENAME["global"]="${DOLLY_MOUNTPOINT} --zpool-name-incl=rpool --sub-zfs-dir-incl="
 
 DSMC_ERROR_RE='( ANS[[:alnum:]]{5} |No schedule returned from server.)'
 DSMC_ERROR_OK_RE=' ANS(1898I|1696W|1115W|1149E|1809W|2200I|2201I|2820E|1484I) '
@@ -63,8 +63,6 @@ EOF
 }
 
 delete_metadata4archive()
-# a tool which write down stuff that we can not see in a regular backup
-#
 {
     if test -d ${DIR_OF_META} ; then
         cd ${DIR_OF_META}
@@ -78,6 +76,8 @@ delete_metadata4archive()
     fi
 }
 
+#
+# a tool which write down stuff that we can not see in a regular backup
 write_metadata4archive()
 {
     delete_metadata4archive
@@ -95,6 +95,25 @@ echo_verbose()
 	if test ${IS_VERBOSE} -eq 1 ; then
 		echo $@
 	fi 
+}
+
+check_if_new_zfs()
+{
+#
+#   -1- take the ZFS not created by dolly
+#   -2- remove the snapshots
+#   -3- keep the one wich are mounted
+#   -4- if on zone, then remove the zoned one
+#   -5- find their mountpoint
+    zfs get -H ch.unige:created_by | ggrep -vP "\tdolly\t" | cut -f1 \
+    | grep -v "@" \
+    | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+    | if test "$(zonename)" == "global" ; then
+        gxargs --no-run-if-empty zfs get -H zoned | ggrep -P "\off\t" | cut -f1 
+      else
+        cat
+      fi \
+    | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3 >  ${tmp_mountpoint_nodolly}
 }
 
 write_include_exclude_4_tsm()
@@ -224,7 +243,7 @@ post()
     #
     # dolly kill
     echo_verbose -n "kill the clone…"
-    /usr/local/bin/dolly kill --mountpoint=${DOLLY_MOUNTPOINT}
+    /usr/local/bin/dolly kill ${DOLLY_MOUNTPOINT}
     echo_verbose " ✔"
     #
     # Parse the log and rotate it
