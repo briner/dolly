@@ -40,7 +40,7 @@ mailx_utf-8()
     while getopts ":s:" opt; do
         case $opt in
             s)
-                SUBJECT=$OPTARG
+                SUBJECT="$OPTARG"
                 ;;
             *)
                 usage
@@ -259,7 +259,7 @@ post()
     # send email
     echo_verbose -n "send email…"
     if test -s ${body_email} ; then
-        cat ${body_email} | mailx_utf-8 -s "[$(hostname)] TSM Backup" ${EMAIL_DEST}
+        cat ${body_email} | mailx_utf-8 -s "[$(hostname | cut -d . -f1)] TSM Backup" ${EMAIL_DEST}
     fi
     rm ${body_email}
     echo_verbose " ✔"

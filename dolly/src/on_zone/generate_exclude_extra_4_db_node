@@ -10,10 +10,10 @@
 
 shopt -s extglob
 
-EMAIL_DEST="unix-bot,dba-dinf@unige.ch"
+EMAIL_DEST="unix-bot@unige.ch,dba-dinf@unige.ch"
 
 EXCLUDE_PATH_GENERATED=/opt/tivoli/tsm/client/ba/bin/exclude_extra_4_db_node
-ZFS_MOUNTPOINT_NO_DOLLY_PATH=/var/run/mountpoint_nodolly
+ZFS_MOUNTPOINT_NO_DOLLY_PATH=/var/cache/mountpoint_nodolly
 #
 # is there some new ZFS to take in account
 tmp_mountpoint_nodolly=$(mktemp -p /tmp $(basename ${ZFS_MOUNTPOINT_NO_DOLLY_PATH}).XXXXXX)

@@ -833,7 +833,7 @@ def lzfs_path_2_lzfs(zfspath_str, lzfspath_error=[]):
 if '__main__' == __name__:
     from optparse import OptionParser
     parser = OptionParser(usage='''
-    %prog clone [<mountpoint_path>] [--snapshot-expiration-datetime=<iso8601>]
+    %prog clone [<mountpoint_path>] [--snapshot-expiration-datetime=<iso8601>] [--tag=<tagname>]
                 [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
                 [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
                 [--zpool-name-incl=<path>,...] [--zpool-name-excl=<path>,...]
