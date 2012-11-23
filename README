@@ -1,3 +1,4 @@
+test
 dolly is a tool to create a clone of a VFS constituted of ZFS. It is based on
 snapshots and clone command.
 Check the README_DOLLY
