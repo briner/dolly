@@ -833,6 +833,8 @@ def lzfs_path_2_lzfs(zfspath_str, lzfspath_error=[]):
 if '__main__' == __name__:
     from optparse import OptionParser
     parser = OptionParser(usage='''
+    more info on : http://github.com/briner/dolly
+    
     %prog clone [<mountpoint_path>] [--snapshot-expiration-datetime=<iso8601>] [--tag=<tagname>]
                 [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
                 [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
@@ -841,7 +843,10 @@ if '__main__' == __name__:
     %prog kill [<mountpoint_path>]
     %prog destroy-old-snapshot-kept [all|<mountpoint_path>] [--as-we-were-in=<iso8601>]
     
-    more info on : https://github.com/briner/dolly/blob/master/dolly/README''')
+    Arguments:
+      mountpoint_path       the path under which clone will be mounted(default:"%s")
+    
+    ''' % DEFAULT_MOUNTPOINT)
 #    parser.add_option("--mountpoint",                      dest="mountpoint",      default=DEFAULT_MOUNTPOINT
 #                     ,help='under which path the clone is (default:"%s")' % DEFAULT_MOUNTPOINT)
     # -- clone or kill
@@ -861,15 +866,15 @@ if '__main__' == __name__:
                      ,help='to include to the clone every the zfs of a ZPOOL. the value MUST be a zpool name,... (default:"%s")' % ZPOOL_NAME_EXCL)
     #
     parser.add_option("--zfs-dir-dont-keep-snapshot",      dest="zfsdir_dontkeepsnapshot", default=ZFS_DIR_DONT_KEEP_SNAPSHOT
-                     ,help='zfs dir for which we will not keep the snapshot, the value MUST be a mountpoint,... (default:"%s")' % ZFS_DIR_DONT_KEEP_SNAPSHOT)
+                     ,help='zfs dir for which we will not keep the snapshot after a kill, the value MUST be a mountpoint,... (default:"%s").' % ZFS_DIR_DONT_KEEP_SNAPSHOT)
     parser.add_option("--sub-zfs-dir-dont-keep-snapshot",  dest="subzfsdir_dontkeepsnapshot", default=SUB_ZFS_DIR_DONT_KEEP_SNAPSHOT
                      ,help='zfs dir for which we will not keep the snapshot, the value MUST be a mountpoint,... (default:"%s")' % SUB_ZFS_DIR_DONT_KEEP_SNAPSHOT)
     # -- tag
     parser.add_option("--tag",                             dest="tag",  default=DEFAULT_TAG
-                     ,help='this tag(a-zA-Z_) will be included in the snapname (default:"%s")' % DEFAULT_TAG)
+                     ,help='the tag(a-zA-Z_) will be included in the snapname (default:"%s"), which will allow you an easier management ' % DEFAULT_TAG)
     # -- destroy-old-snapshot-kept
     parser.add_option("--snapshot-expiration-datetime",    dest="expiration_str",  default=DEFAULT_SNAPSHOT_ISO8601_STR
-                     ,help='the time we will keep the snapshot after the cloning (default:"%s")' % DEFAULT_SNAPSHOT_ISO8601_STR)
+                     ,help='the time we will keep the snapshot after the kill of the clone (default:"%s")' % DEFAULT_SNAPSHOT_ISO8601_STR)
     parser.add_option("--as-we-were-in",                   dest="another_now",     default=None
                      ,help='expiration or duration in <iso8601> format. (eg: duration of 5day:"P5D", of 5min:"PT5M", at datetime 2012.09.1975:"1975-08-19" )')
     # -- commun

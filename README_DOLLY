@@ -16,21 +16,18 @@ libcbr from https://github.com/briner/libcbr
 HELP:
 dolly -h
 Usage: 
-    dolly clone [--mountpoint=<path>] [--snapshot-expiration-datetime=<iso8601>]
+    dolly clone [<mountpoint_path>] [--snapshot-expiration-datetime=<iso8601>]
                 [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
                 [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
                 [--zpool-name-incl=<path>,...] [--zpool-name-excl=<path>,...]
                 [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
-    dolly kill [--mountpoint=<path>]
-    dolly destroy-old-snapshot-kept [--mountpoint=all|<path>] [--as-we-were-in=<iso8601>]
+    dolly kill [<mountpoint_path>]
+    dolly destroy-old-snapshot-kept [all|<mountpoint_path>] [--as-we-were-in=<iso8601>]
     
     more info on : https://github.com/briner/dolly/blob/master/dolly/README
 
 Options:
   -h, --help            show this help message and exit
-  --mountpoint=MOUNTPOINT
-                        under which path the clone is
-                        (default:"/dolly/backup")
   --sub-zfs-dir-incl=SUBZFSDIRINCL
                         to include to the clone a subtree of the VFS. the
                         value MUST be a zfs mountpoint,... (default:"/")
@@ -43,11 +40,11 @@ Options:
   --zfs-dir-incl=ZFSDIRINCL
                         to exclude to the clone a ZFS. the value MUST be a zfs
                         mountpoint,... (default:"")
-  --zpool-name-excl=ZPOOLNAMEEXCL
-                        to include to the clone every the zfs of a ZPOOL. the
-                        value MUST be a zpool name,... (default:"")
   --zpool-name-incl=ZPOOLNAMEINCL
                         to exclude to the clone every ZFS of a ZPOOL. the
+                        value MUST be a zpool name,... (default:"")
+  --zpool-name-excl=ZPOOLNAMEEXCL
+                        to include to the clone every the zfs of a ZPOOL. the
                         value MUST be a zpool name,... (default:"")
   --zfs-dir-dont-keep-snapshot=ZFSDIR_DONTKEEPSNAPSHOT
                         zfs dir for which we will not keep the snapshot, the
@@ -55,6 +52,8 @@ Options:
   --sub-zfs-dir-dont-keep-snapshot=SUBZFSDIR_DONTKEEPSNAPSHOT
                         zfs dir for which we will not keep the snapshot, the
                         value MUST be a mountpoint,... (default:"")
+  --tag=TAG             this tag(a-zA-Z_) will be included in the snapname
+                        (default:"")
   --snapshot-expiration-datetime=EXPIRATION_STR
                         the time we will keep the snapshot after the cloning
                         (default:"P7D")
@@ -92,7 +91,7 @@ dolly clone
 3. list the current dolly
 dolly
   # mounted :
-  #   /dolly/backup
+  # mounted /dolly/backup
 
 we can see that it sees a dolly mounted at /dolly/backup
  
@@ -110,7 +109,7 @@ we can see that it sees a dolly mounted at /dolly/backup
 yeah… we've got a clone!
 
 5. let's create a new clone of a sub part of the VFS
-dolly clone --mountpoint=/dolly/sub-clone --sub-zfs-dir=/oracle
+dolly clone /dolly/sub-clone --sub-zfs-dir=/oracle
  
 6. let's see the clone in the VFS
 zfs list | grep dolly/sub-clone 
@@ -120,18 +119,18 @@ zfs list | grep dolly/sub-clone
 7. let's see the dolly list
 dolly
   # mounted :
-  #   /dolly/sub-clone
-  #   /dolly/backup
+  # mounted /dolly/sub-clone
+  # mounted /dolly/backup
   # snapshot kept :
 
 8. and let's kill the dolly /dolly/sub-clone
-dolly kill --mountpoint=/dolly/sub-clone
+dolly kill /dolly/sub-clone
   # <empty>
 
 9. the dolly list
 dolly
   # mounted :
-  #   /dolly/backup
+  # mounted /dolly/backup
   # snapshot kept :
   #  /dolly/sub-clone @dolly_mnt::2012.09.26_16:49:27.225859::zone-test2
 
