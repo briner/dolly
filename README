@@ -1,9 +1,8 @@
-dolly is a tool to create a clone of a VFS constituted of ZFS. It is based on
-snapshots and clone command. For more info : check the README_DOLLY
+dolly is a tool to create a clone of a hierarchy of ZFS. It is based on
+snapshots, clone command and python. For more info : check the README_DOLLY
 
-tzm-sched is a script which use tsm (Tivoli Storage Manager or dsmc)
-and the snapshot of ZFS filesystem. Unfortunately, as dsmc is unable to backup ZFS from their
-snapshots in an scheduler way. So here it is our solution.
+tzm-sched allow you to backup zfs hierarchy with dsmc sched using snapshots
+(clone in fact).
 Check the README_TZM_SCHED
 
 If you find this script useful, consider a recommendation on LinkedIn with my
