@@ -6,7 +6,20 @@ account the order of the argument in the command line
 
 -tzm-sched: the crontab send a better subject name instead of a
   'Output from "cron" command'
-  
+
+- stop sending messages for this error
+ANS1228E Sending of object '/system/volatile/unige_zfs_rpool.lock' failed
+ANS4005E Error processing '/system/volatile/unige_zfs_rpool.lock': file not found
+ANS1802E Incremental backup of '/system/volatile' finished with 1 failure
+
+12/17/2012 12:01:31 AM ANS1228E Sending of object '/system/volatile/unige_zfs_rpool.lock' failed
+12/17/2012 12:01:31 AM ANS4005E Error processing '/system/volatile/unige_zfs_rpool.lock': file not found
+12/17/2012 12:01:34 AM ANS1802E Incremental backup of '/system/volatile' finished with 1 failure
+
+12/17/2012 12:00:54 AM ANS1228E Sending of object '/system/volatile/unige_zfs_rpool.lock' failed
+12/17/2012 12:00:54 AM ANS4005E Error processing '/system/volatile/unige_zfs_rpool.lock': file not found
+12/17/2012 12:00:56 AM ANS1802E Incremental backup of '/system/volatile' finished with 1 failure
+- clean /dolly/backup.lock and /dolly/backup
 
 DONE
 2012-11

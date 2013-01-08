@@ -319,7 +319,6 @@ class Dolly(object):
                 raise DollyErrorAlreadyMounted       
         libcbr.stackfunction.stack_function.add(self._release_lock
                                                ,title='release lock for mountpoint(%s)' % self.mountpoint)
-#    def _release_lock(self, is_after_crash=False):
     def _release_lock(self):
         self.lock=None
 #        if is_after_crash:
