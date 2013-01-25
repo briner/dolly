@@ -173,8 +173,6 @@ def destroy_dolly_zfs(zfs):
         raise Exception( 'zfs destroy dolly zfs problem')
 
 
-    
-
 def dolly_garbage_collector(now, mountpoint):
     my_logger.info('started dolly_garbage_collector')
     my_logger.debug('dolly_garbage_collector on lzpool(%s)' % ','.join([zpool.name for zpool in libcbr.zfs.get_lzpool()]))
@@ -190,7 +188,6 @@ def dolly_garbage_collector(now, mountpoint):
         #
         # repopulate all
         libcbr.zfs.populate_lzfs()
-#mountpoint#        libcbr.mount.populate_lmount()
         #
         # find all the clone that are not mounted and destroy them
         lzfs_clone_unmounted=[]
@@ -213,7 +210,6 @@ def dolly_garbage_collector(now, mountpoint):
         #
         # find all the snapshot, which are unrelated to a clone and created by dolly
         libcbr.zfs.populate_lzfs()
-#mountpoint#        libcbr.mount.populate_lmount()
         lsnap_to_destroy=[]
         lzfs_in_zpool=[zfs for zfs in libcbr.zfs.get_lzfs() if zfs.zpool==zpool]
         # dsnap_lzfs is created for not using zfs.lclone which is time consuming
@@ -354,7 +350,7 @@ class Dolly(object):
             msg='unable to create Dolly FS from a mountpoint(%s) where no zfs is mounted' % mountpoint
             my_logger.warning(msg)
             raise DollyErrorNotMounted(msg)
-        lmount=libcbr.mount.get_lmount(under_path=mountpoint)
+        lmount=libcbr.mount.get_lmount( =mountpoint)
         lsnapname=[]
         for mount in lmount:
             zfs=libcbr.zfs.get_lzfs().by_name(mount.device_to_mount)
@@ -1028,4 +1024,3 @@ if '__main__' == __name__:
         #
         sys.exit(1)
     sys.exit()
-                

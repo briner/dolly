@@ -7,7 +7,7 @@
 
 . /lib/svc/share/smf_include.sh
 
-if /usr/bin/pgrep -x -u 0 -z `/sbin/zonename` dsmc >/dev/null 2>&1
+if /usr/bin/pgrep -f -x -u 0 -z `/sbin/zonename` "/usr/bin/dsmc sched" >/dev/null 2>&1
 then
 	echo "$0: dsmc sched already running"
 	exit $SMF_EXIT_ERR_NOSMF
