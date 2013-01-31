@@ -1,10 +1,13 @@
 #!/bin/bash
 
+# 2013.01.30 Cédric Briner: add function : stdout_n_stderr_2_log
+
 set  -e ; # errexit	Abort script at first error, when a command exits with
           # non-zero status (except in until or while loops, if-tests,
           # list constructs)
 export PATH="/bin:/usr/bin:/usr/sbin:/usr/local/bin"
 
+LOG_PATH=/var/log/tzm-sched.log
 DIR_OF_META="/metadata4archive"
 INCLUDE_EXCLUDE=/opt/tivoli/tsm/client/ba/bin/include_exclude_backup
 IS_VERBOSE=0
@@ -60,16 +63,28 @@ EOF
 }
 
 delete_metadata4archive()
-{
-    if test -d ${DIR_OF_META} ; then
-        cd ${DIR_OF_META}
-        rm -f zpool_status.out
-        rm -f zpool_list.out
-        rm -f beadm_list_-d.out
-       rm -f zfs_get_-rHp_all.out
-        rm -f zfs_list_-t_filesystem.out
-     cd /
-       rmdir ${DIR_OF_META}
+{   
+    if test -d /tmp/tzm-sched/metadata4archive ; then
+        rm -f /tmp/tzm-sched/metadata4archive/date
+        rm -f /tmp/tzm-sched/metadata4archive/hostname
+        rm -f /tmp/tzm-sched/metadata4archive/ifconfig_-a
+        rm -f /tmp/tzm-sched/metadata4archive/zpool_status.out
+        rm -f /tmp/tzm-sched/metadata4archive/zpool_list.out
+        rm -f /tmp/tzm-sched/metadata4archive/beadm_list_-d.out
+        rm -f /tmp/tzm-sched/metadata4archive/zfs_get_-rHp_all.out
+        rm -f /tmp/tzm-sched/metadata4archive/zfs_list_-t_filesystem.out
+        rmdir /tmp/tzm-sched/metadata4archive
+    fi
+    for mnt4copy in $(zfs get -H ch.unige.dolly:zone \
+        | gawk '{if ( $3 == "-" ){ print $1} }' \
+        | grep -v "@" \
+        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+        | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3) ; do
+        rm -f ${mnt4copy}/.metadata4archive.tgz
+    done
+    rm -f /tmp/tzm-sched/metadata4archive.tgz
+    if test -d /tmp/tzm-sched; then
+        rmdir /tmp/tzm-sched
     fi
 }
 
@@ -78,14 +93,43 @@ delete_metadata4archive()
 write_metadata4archive()
 {
     delete_metadata4archive
-    mkdir ${DIR_OF_META}
-    cd  ${DIR_OF_META}
-    zpool status > zpool_status.out
-    zpool list > zpool_list.out
-    beadm list -d > beadm_list_-d.out
-    zfs get -rHp all > zfs_get_-rHp_all.out
-    zfs list -t filesystem > zfs_list_-t_filesystem.out
+    #
+    
+    mkdir -p /tmp/tzm-sched/metadata4archive
+    date +"%Y/%m/%d-%H:%M" >/tmp/tzm-sched/metadata4archive/date
+    hostname > /tmp/tzm-sched/metadata4archive/hostname
+    ifconfig -a > /tmp/tzm-sched/metadata4archive/ifconfig_-a
+    zpool status > /tmp/tzm-sched/metadata4archive/zpool_status.out
+    zpool list > /tmp/tzm-sched/metadata4archive/zpool_list.out
+    beadm list -d > /tmp/tzm-sched/metadata4archive/beadm_list_-d.out
+    zfs get -rHp all > /tmp/tzm-sched/metadata4archive/zfs_get_-rHp_all.out
+    zfs list -t filesystem > /tmp/tzm-sched/metadata4archive/zfs_list_-t_filesystem.out
+    cd /tmp/tzm-sched
+    gtar -czvf metadata4archive.tgz ./metadata4archive > /dev/null
+    cd - > /dev/null
+    
+    #
+    # COPY this file in every mountpoint that will be backep up
+#    # - write a file of re based on which mountpoint is excluded from backup
+#    #   /tmp/tzm-sched/exclude-mountpoint-re
+#    # - write a file listing the mountpoint that will be backed up
+#    #   /tmp/tzm-sched/include-mountpoint
+#    cat /opt/tivoli/tsm/client/ba/bin/include_exclude_backup \
+#    | grep exclude.fs | cut -d " " -f2 \
+#    | gsed -e 's|^|^|' -e 's|$|$|' > /tmp/tzm-sched/exclude-mountpoint-re
+#    #
+#    zfs list -H -t filesystem -r -o mountpoint | ggrep "^/" \
+#    | ggrep -vf /tmp/tzm-sched/exclude-mountpoint-re > /tmp/tzm-sched/include-mountpoint
+    for mnt4copy in $(zfs get -H ch.unige.dolly:zone \
+        | gawk '{if ( $3 == "-" ){ print $1} }' \
+        | grep -v "@" \
+        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+        | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3) ; do
+        cp /tmp/tzm-sched/metadata4archive.tgz ${mnt4copy}/.metadata4archive.tgz
+    done
+
 }
+
 
 echo_verbose()
 {
@@ -116,8 +160,9 @@ check_if_new_zfs()
 write_include_exclude_4_tsm()
 {
     {
-        echo "* include/exclude file generated for "
-        echo "* dolly_mountpoint(${DOLLY_MOUNTPOINT}) by tzm-sched"
+        echo "* include/exclude file generated for dolly_mountpoint:"
+        echo "*  - ${DOLLY_MOUNTPOINT}"
+        echo "* by tzm-sched"
         #
         # EXCLUDE fs which are in both origin & clone from the original
         #   -1- take the ZFS belonging to this zonename
@@ -127,6 +172,7 @@ write_include_exclude_4_tsm()
         #   -5- find the ZFS they were originated from
         #   -6- find their mountpoint
         #   -7- do an exclude.fs for tsm
+        echo "*"
         echo "* EXCLUDE ZFS which are in both origin & clone from the original"
         zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
         | gxargs --no-run-if-empty zfs get -H ch.unige.dolly:mountpoint | ggrep -P "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
@@ -143,6 +189,7 @@ write_include_exclude_4_tsm()
         #   -4- keep the one wich are mounted
         #   -5- find their mountpoint
         #   -6- do an exclude.fs for tsm
+        echo "*"
         echo "* EXCLUDE ZFS which are in other \"dolly clone\" in the same zonename"
         zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
         | gxargs --no-run-if-empty zfs get -H "ch.unige.dolly:mountpoint" | ggrep -Pv "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
@@ -157,6 +204,7 @@ write_include_exclude_4_tsm()
         #   -3- keep the one wich are mounted
         #   -4- find their mountpoint
         #   -5- do an exclude.fs for tsm
+        echo "*"
         echo "* EXCLUDE ZFS which are in other zone"
         if test "$(zonename)" == "global" ; then
             zfs get -H zoned | ggrep -P "\ton\t" | cut -f1 \
@@ -165,6 +213,18 @@ write_include_exclude_4_tsm()
             | gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
             | gsed 's|\(.*\)|exclude.fs \1|'
         fi
+        #
+        # EXCLUDE system/volatile
+        echo "*"
+        echo "* EXCLUDE swap FS mounted on */system/volatile"
+        mount | grep " swap " | cut -d " " -f1 | ggrep -E '/system/volatile$' \
+              | gsed 's|\(.*\)|exclude.fs \1|'
+#        #
+#        # INCLUDE /tmp
+#        echo "*"
+#        echo "* INCLUDE /tmp"
+#        echo "include.fs /tmp"
+        
     } > ${INCLUDE_EXCLUDE}
 }
 
@@ -358,6 +418,16 @@ EOF_AT
     echo_verbose "------------"
 }
 
+stdout_n_stderr_2_log()
+{   
+    # http://serverfault.com/questions/103501/how-can-i-fully-log-all-bash-scripts-actions
+    exec 3>&1 4>&2
+    trap 'exec 2>&4 1>&3' 0 1 2 3
+    exec 1> >(while read line ; do  echo -n $(date +"%Y.%m.%d-%H:%M:%S") ;echo " - $$ - info - $line" ; done>>${LOG_PATH})
+    exec 2> >(while read line ; do  echo -n $(date +"%Y.%m.%d-%H:%M:%S") ;echo " - $$ - error -$line" ; done>>${LOG_PATH})
+}
+
+
 usage () {
 	scriptname=$(basename ${0})
    cat <<EOF
@@ -367,6 +437,7 @@ Usage: $scriptname pre-tsm | post-tsm
    -h   displays basic help
    -v   verbose
    -d   directory where the metadata are written
+   -l   stdout and stderr to \$LOG_PATH(${LOG_PATH})
 
 - pre-tsm/post-tsm are to be invoked if you want to backup with a scheduler
 in mind
@@ -378,8 +449,8 @@ this function out of the use of pre-tsm/post-tsm
 EOF
    exit 0
 }
-
-while getopts ":vhd:" opt; do
+IS_VERBOSE=0
+while getopts ":vhd:l" opt; do
   case $opt in
     v)
       IS_VERBOSE=1
@@ -390,11 +461,15 @@ while getopts ":vhd:" opt; do
     d)
       DIR_OF_META=$OPTARG
       ;;
+    l)
+      stdout_n_stderr_2_log
+      ;;
     *)
       usage
       ;;
   esac
 done
+
 
 shift $((OPTIND-1))
 
