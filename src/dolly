@@ -25,6 +25,7 @@ from libcbr.dateutil.relativedelta import relativedelta
 my_logger=logging.getLogger('MyLogger')
 
 
+
 ###############################################################################
 # DEFINITION
 
@@ -41,6 +42,12 @@ def print_debug(*args):
         except:
             args=[repr(arg).replace('\\n','\n%s ' % name) for arg in args[1:]]
         print name+' '+' '.join(args)
+
+#
+# definition GARBAGE 
+MAX_NUMBER_ZOMBIE=5
+MAX_AGE_ZOMBIE_STR="P3D"
+
 
 
 # definition PELE MELE
@@ -129,12 +136,8 @@ def is_on_a_zone_when_in_globalzone(zfs):
             return True
     return False
 def is_zfs_eligible(zfs):
-    try:
-        if zfs.type != "filesystem":
-            return False
-    except:
-        print zfs, zfs.name, dir(zfs)
-        raise Exception("aie30    ")
+    if zfs.type != "filesystem":
+        return False
     if not is_zfs_mounted(zfs):
         return False
     if is_created_by_dolly(zfs):
@@ -207,6 +210,7 @@ def destroy_dolly_zfs(zfs, number_of_try=4):
 def dolly_garbage_collector(now, mountpoint):
     my_logger.info('started dolly_garbage_collector')
     my_logger.debug('dolly_garbage_collector on lzpool(%s)' % ','.join([zpool.name for zpool in libcbr.zfs.get_lzpool()]))
+    lzfs_zombie=[]
     for zpool in libcbr.zfs.get_lzpool():
         my_logger.info('destroy_old_snapshot_kept for zpool(%s)' % zpool.name)
         print_debug ('dolly_garbage_collector', '====ZPOOL(%s)' % zpool.name)
@@ -237,7 +241,9 @@ def dolly_garbage_collector(now, mountpoint):
         for zfs in lzfs_clone_unmounted:
             libcbr.zfs.populate_lzfs()
             if libcbr.zfs.get_lzfs().by_name(zfs.name):
-                destroy_dolly_zfs(zfs)
+                is_destroyed=destroy_dolly_zfs(zfs)
+                if not is_destroyed:
+                    lzfs_zombie.append(zfs)
         #
         # find all the snapshot, which are unrelated to a clone and created by dolly
         libcbr.zfs.populate_lzfs()
@@ -305,6 +311,34 @@ def dolly_garbage_collector(now, mountpoint):
             if libcbr.zfs.get_lsnapshot().by_name(snap.name):
                 destroy_dolly_snap(snap.name)
         zpool_unlock()
+    #
+    # zombie : clone that should be deleted and that we were unable to destroy
+    lmsg_zombie=[]
+    len_zombie=len(lzfs_zombie)
+    if len_zombie >= MAX_NUMBER_ZOMBIE:
+        msg="The number of zombie as reached the limit of MAX_NUMBER_ZOMBIE: %d>=%d" % (len_zombie,MAX_NUMBER_ZOMBIE)
+        lmsg_zombie.append(msg)
+        for zfs in lzfs_zombie:
+            lmsg_zombie.append(" - zfs.name(%s)" % zfs.name)
+    #
+    zombie_expiration=datetime.now()+iso8601_parse(MAX_AGE_ZOMBIE_STR)
+    lzfs_zombie_too_old=[]
+    for zfs in lzfs_zombie:
+        unmount_datetime_str=zfs.duser_prop_value['ch.unige.dolly:unmount_datetime']
+        if not unmount_datetime_str:
+            lmsg_zombie.append("old version of dolly, we still have clone without the property 'ch.unige.dolly:unmount_datetime]")
+            continue
+        unmount_datetime=str2datetime(unmount_datetime_str)
+        if zombie_expiration < datetime.now():
+            lzfs_zombie_too_old.append(zfs)
+    if lzfs_zombie_too_old:
+        lmsg_zombie.append("The following clones are zombie for too long")
+        for zfs in lzfs_zombie_too_old:
+            lmsg_zombie.append(" - zfs.name(%s)" % zfs.name)
+    if lmsg_zombie:
+        for msg in lmsg_zombie:
+            my_logger.error(msg)
+        libcbr.notification.notify.add(lmsg_zombie)
     my_logger.info('ended dolly_garbage_collector')
 
 ######################################
@@ -590,6 +624,7 @@ class Dolly(object):
     def unmount_n_unclone(self):
         my_logger.info('started unmount_n_unclone')
         my_logger.info('unmount_n_unclone mountpoint(%s)' % self.mountpoint )
+        unmount_datetime_str=datetime2str(datetime.now())
         dinfo={'mountpoint':self.mountpoint
               ,'state' : 'unmount_n_unclone'}
         self._get_lock(dinfo)
@@ -610,6 +645,8 @@ class Dolly(object):
                 my_logger.debug('unmount and then destroy the cloned zfs(%s)' % ', '.join( [zfs.name for zfs in lzfs ]) )
             for zfs in lzfs:
                 zfs.unmount()
+                zfs.set_property("ch.unige.dolly:unmount_datetime", unmount_datetime_str)
+            zpool_unlock()
         #
         # destroy the mountpoint
         ldir=[]
@@ -619,39 +656,13 @@ class Dolly(object):
         ldir.reverse()
         for dir_to_remove in ldir:
             os.rmdir(dir_to_remove)
-            #
-            # unclone the ZFS clone
-            lzfs.sort(libcbr.zfs.Zfs.cmp_by_name)
-            lzfs.reverse
-            for zfs in lzfs:
-                destroy_dolly_zfs(zfs)
-#                error_inst=None
-#                try:
-#                    destroy_dolly_zfs(zfs)
-#                except libcbr.zfs.ZfsCmdError, error_inst:
-#                    print "\nzfs.name", zfs.name
-#                    print os.system("zfs list -t all | grep %s" % zfs.name)
-#                if error_inst:
-#                    raise error_inst
-##                or
-#                number_of_try=0
-#                is_success=False
-#                error_inst=None
-#                while (number_of_try < 4) or is_success:
-#                    try:
-#                        libcbr.zfs.destroy(zfs.name)
-#                        is_success=True
-#                        break
-#                    except libcbr.zfs.ZfsCmdError, error_inst:
-#                        number_of_try+=1
-#                        my_logger.warning("retry in %s sec" % number_of_try)
-#                        print "zfs.name", zfs.name
-##                        print os.system("zfs list -t all -r %s" % zfs.name)
-#                        print os.system("zfs list -t all | grep %s" % zfs.name)
-#                        time.sleep(2^number_of_try)
-#                if error_inst:
-#                    raise error_inst
-            zpool_unlock()
+        #
+        # unclone the ZFS clone
+        # this will be done with the garbage
+#        lzfs.sort(libcbr.zfs.Zfs.cmp_by_name)
+#        lzfs.reverse
+#        for zfs in lzfs:
+#            destroy_dolly_zfs(zfs)
         #
         # ending
         self._release_lock()
@@ -827,7 +838,6 @@ def lzfs_path_2_lzfs(zfspath_str, lzfspath_error=[]):
                 if -1 != zfs.name.find("dolly"):
                     my_logger.ERROR("zfs name: %s" % zfs.name)
                     my_logger.ERROR("zfs created_by: %s" % zfs.duser_prop_value.get('ch.unige:created_by'))
-#mountpoint#                    my_logger.ERROR("zfs mountpoint_from_lmount: %s" % zfs.get_mountpoint_from_lmount())
                     my_logger.ERROR("zfs mountpoint_from_lmount: %s" % zfs.mountpoint)
                     my_logger.ERROR("zfs mounted: %s" % zfs.mounted)
                     my_logger.ERROR("zfs mountpoint: %s" % zfs.mountpoint)

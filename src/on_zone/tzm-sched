@@ -8,7 +8,6 @@ set  -e ; # errexit	Abort script at first error, when a command exits with
 export PATH="/bin:/usr/bin:/usr/sbin:/usr/local/bin"
 
 LOG_PATH=/var/log/tzm-sched.log
-DIR_OF_META="/metadata4archive"
 INCLUDE_EXCLUDE=/opt/tivoli/tsm/client/ba/bin/include_exclude_backup
 IS_VERBOSE=0
 
@@ -125,7 +124,7 @@ write_metadata4archive()
         | grep -v "@" \
         | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
         | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3) ; do
-        cp /tmp/tzm-sched/metadata4archive.tgz ${mnt4copy}/.metadata4archive.tgz
+        cp /tmp/tzm-sched/metadata4archive.tgz ${mnt4copy}/.metadata4archive.tgz | :
     done
 
 }
@@ -136,25 +135,6 @@ echo_verbose()
 	if test ${IS_VERBOSE} -eq 1 ; then
 		echo $@
 	fi 
-}
-
-check_if_new_zfs()
-{
-#
-#   -1- take the ZFS not created by dolly
-#   -2- remove the snapshots
-#   -3- keep the one wich are mounted
-#   -4- if on zone, then remove the zoned one
-#   -5- find their mountpoint
-    zfs get -H ch.unige:created_by | ggrep -vP "\tdolly\t" | cut -f1 \
-    | grep -v "@" \
-    | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
-    | if test "$(zonename)" == "global" ; then
-        gxargs --no-run-if-empty zfs get -H zoned | ggrep -P "\off\t" | cut -f1 
-      else
-        cat
-      fi \
-    | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3 >  ${tmp_mountpoint_nodolly}
 }
 
 write_include_exclude_4_tsm()
@@ -397,9 +377,11 @@ post()
     echo_verbose -n "send email…"
     if test -s ${body_email} ; then
         cat ${body_email} | mailx_utf-8 -s "[$(hostname)] TSM Backup" ${EMAIL_DEST}
+        echo_verbose " ✔ sent"
+    else
+        echo_verbose " ✔ not needed"
     fi
     rm ${body_email}
-    echo_verbose " ✔"
     #
     # disable dsmc-sched
     echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
@@ -436,30 +418,23 @@ Usage: $scriptname pre-tsm | post-tsm
        $scriptname [-d] write_metadata4archive | delete_metadata4archive
    -h   displays basic help
    -v   verbose
-   -d   directory where the metadata are written
    -l   stdout and stderr to \$LOG_PATH(${LOG_PATH})
 
 - pre-tsm/post-tsm are to be invoked if you want to backup with a scheduler
 in mind
 
 - clean is to be invoked when something get wrong and that it removes the well known problem
-
-- write_metadata4archive/delete_metadata4archive are a convenient way to access
-this function out of the use of pre-tsm/post-tsm
 EOF
    exit 0
 }
 IS_VERBOSE=0
-while getopts ":vhd:l" opt; do
+while getopts ":vhl" opt; do
   case $opt in
     v)
       IS_VERBOSE=1
       ;;
     h)
       usage
-      ;;
-    d)
-      DIR_OF_META=$OPTARG
       ;;
     l)
       stdout_n_stderr_2_log

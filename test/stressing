@@ -2,6 +2,7 @@
 while true ; do
   echo -------------
   date
+  echo ✔
   echo -n clone… one
   dolly clone /dolly/one --tag=one --snapshot-expiration-datetime=PT2M
   if test $? -ne 0 ; then break ; fi
@@ -11,52 +12,38 @@ while true ; do
   echo -n kill… one
   dolly kill /dolly/one
   if test $? -ne 0 ; then date ; break ; fi
-  echo ✔
 done
+date
+touch /var/run/unige_zfs_rpool.lock
 
+3
 
 while true ; do
-  echo -------------
-  date
-  echo -n clone… number2
-  dolly clone /dolly/number2 --tag=number2 --snapshot-expiration-datetime=PT2M
-  if test $? -ne 0 ; then break ; fi
-  echo ✔
-  echo --
-  date
-  echo -n kill… number2
-  dolly kill /dolly/number2
-  if test $? -ne 0 ; then date ; break ; fi
-  echo ✔
-done
-
-
-while true ; do
-  echo @stress1_local
+  date ; sleep 1; echo @stress1_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress1_local"
   if test $? -ne 0 ; then break ; fi
-  date ; echo @stress2_local
+  date ; sleep 1; echo @stress2_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress2_local"
   if test $? -ne 0 ; then break ; fi
-  date ; echo @stress3_local
+  date ; sleep 1; echo @stress3_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress3_local"
   if test $? -ne 0 ; then break ; fi
-  date ; echo @stress4_local
+  date ; sleep 1; echo @stress4_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress4_local"
   if test $? -ne 0 ; then break ; fi
-  date ; echo @stress5_local
+  date ; sleep 1; echo @stress5_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress5_local"
   if test $? -ne 0 ; then break ; fi
-  date ; echo @stress6_local
+  date ; sleep 1; echo @stress6_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress6_local"
   if test $? -ne 0 ; then break ; fi
-  date ; echo @stress7_local
+  date ; sleep 1; echo @stress7_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress7_local"
   if test $? -ne 0 ; then break ; fi
-  date ; echo @stress8_local
+  date ; sleep 1; echo @stress8_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress8_local"
   if test $? -ne 0 ; then break ; fi
-  date ; echo @stress9_local
+  date ; sleep 1; echo @stress9_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress9_local"
   if test $? -ne 0 ; then break ; fi
 done
