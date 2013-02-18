@@ -352,10 +352,16 @@ post()
     echo_verbose enter post-tsm
     echo_verbose "------------"
     #
-    # dolly kill
-    echo_verbose -n "kill the clone…"
-    /usr/local/bin/dolly kill ${DOLLY_MOUNTPOINT}
-    echo_verbose " ✔"
+    # disable dsmc-sched
+    echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
+    env SHELL=/bin/bash at 'now + 10minutes' << EOF_AT
+export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
+svcadm disable -s dsmc-sched
+if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
+    echo "the \"at\" jobs from \"tzm-sched\" was unable to stop the dsmc-sched" | mailx -s "[$(hostname | cut -d "." -f1)] TSM Backup" ${EMAIL_DEST}
+    exit 3
+fi
+EOF_AT
     #
     # Parse the log and rotate it
     echo_verbose -n "parse the log and rotate it…"
@@ -383,16 +389,10 @@ post()
     fi
     rm ${body_email}
     #
-    # disable dsmc-sched
-    echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
-    env SHELL=/bin/bash at 'now + 1minutes' << EOF_AT
-export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
-svcadm disable -s dsmc-sched
-if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
-    echo "the \"at\" jobs from \"tzm-sched\" was unable to stop the dsmc-sched" | mailx -s "[$(hostname | cut -d "." -f1)] TSM Backup" ${EMAIL_DEST}
-    exit 3
-fi
-EOF_AT
+    # dolly kill
+    echo_verbose -n "kill the clone…"
+    /usr/local/bin/dolly kill ${DOLLY_MOUNTPOINT}
+    echo_verbose " ✔"
     #
     #
     echo_verbose "------------"

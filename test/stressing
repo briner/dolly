@@ -16,7 +16,23 @@ done
 date
 touch /var/run/unige_zfs_rpool.lock
 
-3
+while true ; do
+  echo -------------
+  date
+  echo ✔
+  echo -n clone… two
+  dolly clone /dolly/two --tag=two --snapshot-expiration-datetime=PT2M
+  if test $? -ne 0 ; then break ; fi
+  echo ✔
+  echo --
+  date
+  echo -n kill… two
+  dolly kill /dolly/two
+  if test $? -ne 0 ; then date ; break ; fi
+done
+date
+touch /var/run/unige_zfs_rpool.lock
+
 
 while true ; do
   date ; sleep 1; echo @stress1_local
