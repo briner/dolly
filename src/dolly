@@ -200,7 +200,10 @@ def destroy_dolly_zfs(zfs, max_number_of_try=4):
             lmsg=["try(%d/%d)%s" %(try_counter,max_number_of_try, msg) for msg in lmsg]
             for msg in lmsg:
                 my_logger.info(msg)
-                return
+            if is_last:
+                my_logger.warning("abandon to destroy zfs(%s) after %d try (time elapsed:%ds)"
+                                  %(zfs.name, max_number_of_try, time_elapsed))
+                return False
             #wait
             try_counter+=1
             wait_time=2**try_counter
@@ -208,7 +211,8 @@ def destroy_dolly_zfs(zfs, max_number_of_try=4):
             time.sleep(wait_time)
             time_elapsed+=wait_time
     if failed_once:
-        my_logger.info("able to destroy zfs(%s)" % zfs.name)
+        my_logger.info("able to destroy zfs(%s) (by retrying %d times)" % (zfs.name, try_counter))
+    return True
 
 def dolly_garbage_collector(now, mountpoint):
     my_logger.info('started dolly_garbage_collector')
@@ -545,23 +549,24 @@ class Dolly(object):
             lsnapshotname_necessary=["%s@%s" % (zfs.name, self.snapname) for zfs in lzfs_2_clone]
             lsnapname_to_destroy=list( set(lsnapname_in_zpool)-set(lsnapshotname_necessary) )
             #
-            my_logger.info("start SUSPICION")
-            my_logger.info(" LSNAPNAME_IN_ZPOOL")
-            for tmpsnapname in lsnapname_in_zpool:
-                my_logger.info(" - %s" % tmpsnapname)
-            my_logger.info(" LSNAPNAME_NECESSARY")
-            for tmpsnapname in lsnapshotname_necessary:
-                my_logger.info(" - %s" % tmpsnapname)
-            my_logger.info(" LSNAPNAME_2_DESTROY")
-            for tmpsnapname in lsnapname_to_destroy:
-                my_logger.info(" - %s" % tmpsnapname)
-            my_logger.info(" LZFS_2_CLONE")
-            lbb=[]
-            for tmpsnapname in lzfs_2_clone:
-                lbb.append([" -", tmpsnapname.name, tmpsnapname.mountpoint])
-            for mymsg in libcbr.mix.ll_2_nicelist(lbb):
-                my_logger.info(mymsg)
-            my_logger.info("end SUSPICION")
+            # SUSPICION DO NOT DELETE
+#            my_logger.info("start SUSPICION")
+#            my_logger.info(" LSNAPNAME_IN_ZPOOL")
+#            for tmpsnapname in lsnapname_in_zpool:
+#                my_logger.info(" - %s" % tmpsnapname)
+#            my_logger.info(" LSNAPNAME_NECESSARY")
+#            for tmpsnapname in lsnapshotname_necessary:
+#                my_logger.info(" - %s" % tmpsnapname)
+#            my_logger.info(" LSNAPNAME_2_DESTROY")
+#            for tmpsnapname in lsnapname_to_destroy:
+#                my_logger.info(" - %s" % tmpsnapname)
+#            my_logger.info(" LZFS_2_CLONE")
+#            lbb=[]
+#            for tmpsnapname in lzfs_2_clone:
+#                lbb.append([" -", tmpsnapname.name, tmpsnapname.mountpoint])
+#            for mymsg in libcbr.mix.ll_2_nicelist(lbb):
+#                my_logger.info(mymsg)
+#            my_logger.info("end SUSPICION")
             #
             if lsnapname_to_destroy:
                 my_logger.debug('destroy them')

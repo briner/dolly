@@ -415,7 +415,7 @@ usage () {
    cat <<EOF
 Usage: $scriptname pre-tsm | post-tsm
        $scriptname clean
-       $scriptname [-d] write_metadata4archive | delete_metadata4archive
+       $scriptname write_metadata4archive | delete_metadata4archive
    -h   displays basic help
    -v   verbose
    -l   stdout and stderr to \$LOG_PATH(${LOG_PATH})
@@ -439,7 +439,7 @@ while getopts ":vhl" opt; do
     l)
       stdout_n_stderr_2_log
       ;;
-    *)
+   *)
       usage
       ;;
   esac
