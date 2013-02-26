@@ -606,7 +606,8 @@ class Dolly(object):
             mountpoint=os.path.join(self.mountpoint, zfs.mountpoint[1:])
             mountpoint=os.path.normpath(mountpoint)
             hash4newzfsname=os.path.basename(self.mountpoint)+'_'+datetimestr_4_snapname_n_clonename
-            new_zfsname="%s/%s_%s_%s"%(zfs.name, DOLLY_PREFIX, hash4newzfsname, ZONENAME)
+#            new_zfsname="%s/%s_%s_%s"%(zfs.name, DOLLY_PREFIX, hash4newzfsname, ZONENAME)
+            new_zfsname="rpool/%s_%s_%s_%s"%(DOLLY_PREFIX, zfs.name.replace('/','.'), hash4newzfsname, ZONENAME)
             new_zfsname=os.path.normpath(new_zfsname)
             new_zfsname=libcbr.path.rstrip_slash(new_zfsname)
             snapshot_expiration_str=datetime2str(snapshot_expiration)
@@ -668,13 +669,6 @@ class Dolly(object):
         for dir_to_remove in ldir:
             os.rmdir(dir_to_remove)
         #
-        # unclone the ZFS clone
-        # this will be done with the garbage
-#        lzfs.sort(libcbr.zfs.Zfs.cmp_by_name)
-#        lzfs.reverse
-#        for zfs in lzfs:
-#            destroy_dolly_zfs(zfs)
-        #
         # ending
         self._release_lock()
         my_logger.info('ended unmount_n_unclone')
@@ -708,7 +702,6 @@ def populate_ldolly_mnt_n_snap():
     # refresh the data
     libcbr.zfs.populate_lzfs()
     libcbr.zfs.populate_lzpool()
-#mountpoint#    libcbr.mount.populate_lmount()
     #
     ldolly_mountpoint=[]
     for zfs in libcbr.zfs.get_lzfs():

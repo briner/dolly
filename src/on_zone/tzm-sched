@@ -244,6 +244,19 @@ pre()
     fi
     echo_verbose " ✔"
     #
+    # pre hook
+    echo_verbose -n "pre hook… "
+    if test -f /etc/tzm-sched-pre-cmd ; then
+        if test -x /etc/tzm-sched-pre-cmd ; then
+            /etc/tzm-sched-pre-cmd
+            echo_verbose " ✔ (/etc/tzm-sched-pre-cmd succeeded)"
+        else
+            echo_verbose " ✔/✘ (/etc/tzm-sched-pre-cmd present but not eXecutable)"
+        fi
+    else
+        echo_verbose "✔ (/etc/tzm-sched-pre-cmd not present)"
+    fi
+    #
     # dolly it
     echo_verbose -n "write metadata for archive… "
     write_metadata4archive
@@ -258,6 +271,19 @@ pre()
     echo_verbose -n "delete metadata for archive…"
     delete_metadata4archive
     echo_verbose " ✔"
+    #
+    # post hook
+    echo_verbose -n "post hook… "
+    if test -f /etc/tzm-sched-post-cmd ; then
+        if test -x /etc/tzm-sched-post-cmd ; then
+            /etc/tzm-sched-post-cmd
+            echo_verbose " ✔ (/etc/tzm-sched-post-cmd succeeded)"
+        else
+            echo_verbose " ✔/✘ (/etc/tzm-sched-post-cmd present but not eXecutable)"
+        fi
+    else
+        echo_verbose "✔ (/etc/tzm-sched-post-cmd not present)"
+    fi
     #
     # write the include exclude file
     echo_verbose -n "write the include exclude file…"
