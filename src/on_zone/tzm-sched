@@ -246,15 +246,15 @@ pre()
     #
     # pre hook
     echo_verbose -n "pre hook… "
-    if test -f /etc/tzm-sched-pre-cmd ; then
-        if test -x /etc/tzm-sched-pre-cmd ; then
-            /etc/tzm-sched-pre-cmd
-            echo_verbose " ✔ (/etc/tzm-sched-pre-cmd succeeded)"
+    if test -f /usr/bin/tzm-sched-pre-cmd ; then
+        if test -x /usr/bin/tzm-sched-pre-cmd ; then
+            /usr/bin/tzm-sched-pre-cmd
+            echo_verbose " ✔ (/usr/bin/tzm-sched-pre-cmd succeeded)"
         else
-            echo_verbose " ✔/✘ (/etc/tzm-sched-pre-cmd present but not eXecutable)"
+            echo_verbose " ✔/✘ (/usr/bin/tzm-sched-pre-cmd present but not eXecutable)"
         fi
     else
-        echo_verbose "✔ (/etc/tzm-sched-pre-cmd not present)"
+        echo_verbose "✔ (/usr/bin/tzm-sched-pre-cmd not present)"
     fi
     #
     # dolly it
@@ -274,15 +274,15 @@ pre()
     #
     # post hook
     echo_verbose -n "post hook… "
-    if test -f /etc/tzm-sched-post-cmd ; then
-        if test -x /etc/tzm-sched-post-cmd ; then
-            /etc/tzm-sched-post-cmd
-            echo_verbose " ✔ (/etc/tzm-sched-post-cmd succeeded)"
+    if test -f /usr/bin/tzm-sched-post-cmd ; then
+        if test -x /usr/bin/tzm-sched-post-cmd ; then
+            /usr/bin/tzm-sched-post-cmd
+            echo_verbose " ✔ (/usr/bin/tzm-sched-post-cmd succeeded)"
         else
-            echo_verbose " ✔/✘ (/etc/tzm-sched-post-cmd present but not eXecutable)"
+            echo_verbose " ✔/✘ (/usr/bin/tzm-sched-post-cmd present but not eXecutable)"
         fi
     else
-        echo_verbose "✔ (/etc/tzm-sched-post-cmd not present)"
+        echo_verbose "✔ (/usr/bin/tzm-sched-post-cmd not present)"
     fi
     #
     # write the include exclude file
