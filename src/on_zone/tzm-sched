@@ -2,7 +2,7 @@
 
 # 2013.01.30 Cédric Briner: add function : stdout_n_stderr_2_log
 
-set  -e ; # errexit	Abort script at first error, when a command exits with
+#set  -e ; # errexit	Abort script at first error, when a command exits with
           # non-zero status (except in until or while loops, if-tests,
           # list constructs)
 export PATH="/bin:/usr/bin:/usr/sbin:/usr/local/bin"
@@ -239,22 +239,21 @@ pre()
     # check that dolly is not mounted
     if /usr/local/bin/dolly | ggrep -q "^mounted ${DOLLY_MOUNTPOINT}" ; then
         echo "\n✘ dolly should not be mounted ✘"
-        echo "hint: clean $(basename $0) with $(basename $0) clean"
-        exit 2
+        echo "  overwite it"
     fi
     echo_verbose " ✔"
     #
     # pre hook
     echo_verbose -n "pre hook… "
-    if test -f /usr/bin/tzm-sched-pre-cmd ; then
-        if test -x /usr/bin/tzm-sched-pre-cmd ; then
-            /usr/bin/tzm-sched-pre-cmd
-            echo_verbose " ✔ (/usr/bin/tzm-sched-pre-cmd succeeded)"
+    if test -f /usr/local/bin/tzm-sched-pre-cmd ; then
+        if test -x /usr/local/bin/tzm-sched-pre-cmd ; then
+            /usr/local/bin/tzm-sched-pre-cmd
+            echo_verbose " ✔ (/usr/local/bin/tzm-sched-pre-cmd succeeded)"
         else
-            echo_verbose " ✔/✘ (/usr/bin/tzm-sched-pre-cmd present but not eXecutable)"
+            echo_verbose " ✔/✘ (/usr/local/bin/tzm-sched-pre-cmd present but not eXecutable)"
         fi
     else
-        echo_verbose "✔ (/usr/bin/tzm-sched-pre-cmd not present)"
+        echo_verbose "✔ (/usr/local/bin/tzm-sched-pre-cmd not present)"
     fi
     #
     # dolly it
@@ -263,9 +262,9 @@ pre()
     echo_verbose " ✔"
     echo_verbose -n "create the clone…"
     if test -n "${DOLLY_CLONE_ARGS_4_ZONENAME[$(zonename)]}" ; then
-        /usr/local/bin/dolly clone ${DOLLY_CLONE_ARGS_4_ZONENAME[$(zonename)]}
+        /usr/local/bin/dolly --overwrite clone ${DOLLY_CLONE_ARGS_4_ZONENAME[$(zonename)]}
     else
-        /usr/local/bin/dolly clone ${DOLLY_CLONE_ARGS_DEFAULT}
+        /usr/local/bin/dolly --overwrite clone ${DOLLY_CLONE_ARGS_DEFAULT}
     fi
     echo_verbose " ✔"
     echo_verbose -n "delete metadata for archive…"
@@ -274,15 +273,15 @@ pre()
     #
     # post hook
     echo_verbose -n "post hook… "
-    if test -f /usr/bin/tzm-sched-post-cmd ; then
-        if test -x /usr/bin/tzm-sched-post-cmd ; then
-            /usr/bin/tzm-sched-post-cmd
-            echo_verbose " ✔ (/usr/bin/tzm-sched-post-cmd succeeded)"
+    if test -f /usr/local/bin/tzm-sched-post-cmd ; then
+        if test -x /usr/local/bin/tzm-sched-post-cmd ; then
+            /usr/local/bin/tzm-sched-post-cmd
+            echo_verbose " ✔ (/usr/local/bin/tzm-sched-post-cmd succeeded)"
         else
-            echo_verbose " ✔/✘ (/usr/bin/tzm-sched-post-cmd present but not eXecutable)"
+            echo_verbose " ✔/✘ (/usr/local/bin/tzm-sched-post-cmd present but not eXecutable)"
         fi
     else
-        echo_verbose "✔ (/usr/bin/tzm-sched-post-cmd not present)"
+        echo_verbose "✔ (/usr/local/bin/tzm-sched-post-cmd not present)"
     fi
     #
     # write the include exclude file
@@ -378,17 +377,6 @@ post()
     echo_verbose enter post-tsm
     echo_verbose "------------"
     #
-    # disable dsmc-sched
-    echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
-    env SHELL=/bin/bash at 'now + 10minutes' << EOF_AT
-export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
-svcadm disable -s dsmc-sched
-if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
-    echo "the \"at\" jobs from \"tzm-sched\" was unable to stop the dsmc-sched" | mailx -s "[$(hostname | cut -d "." -f1)] TSM Backup" ${EMAIL_DEST}
-    exit 3
-fi
-EOF_AT
-    #
     # Parse the log and rotate it
     echo_verbose -n "parse the log and rotate it…"
     body_email=$(mktemp -p /tmp tzm-sched-email.XXXXXX)
@@ -415,9 +403,21 @@ EOF_AT
     fi
     rm ${body_email}
     #
+    # disable dsmc-sched
+    echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
+    env SHELL=/bin/bash at 'now + 1minutes' << EOF_AT
+export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
+svcadm disable -s dsmc-sched
+if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
+    echo "the \"at\" jobs from \"tzm-sched\" was unable to stop the dsmc-sched" | mailx -s "[$(hostname | cut -d "." -f1)] TSM Backup" ${EMAIL_DEST}
+    exit 3
+fi
+EOF_AT
+
+    #
     # dolly kill
     echo_verbose -n "kill the clone…"
-    /usr/local/bin/dolly kill ${DOLLY_MOUNTPOINT}
+    /usr/local/bin/dolly --daemon kill ${DOLLY_MOUNTPOINT}
     echo_verbose " ✔"
     #
     #
