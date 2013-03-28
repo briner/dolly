@@ -35,6 +35,19 @@ touch /var/run/unige_zfs_rpool.lock
 
 
 while true ; do
+  echo -------------
+  date
+  echo ✔
+  echo -n clone… three
+  dolly clone --overwrite /dolly/three --tag=two --snapshot-expiration-datetime=PT2M
+  if test $? -ne 0 ; then break ; fi
+  echo ✔
+done
+date
+touch /var/run/unige_zfs_rpool.lock
+
+
+while true ; do
   date ; sleep 1; echo @stress1_local
   zfsallsnap snapshot --excludezonepools --clobber --destroyclones "@stress1_local"
   if test $? -ne 0 ; then break ; fi

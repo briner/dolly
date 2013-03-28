@@ -226,8 +226,13 @@ def dolly_garbage_collector(now, mountpoint):
         zpool_unlock=libcbr.stackfunction.stack_function.add(
             zpool.unlock_it,                                                      
             title="unlock file'semaphore of zpool(%s)" % zpool.name)
-        zpool.lock_it()
-        #
+        try:
+            zpool.lock_it()
+        except:
+            my_logger.warning("unable to take the lock for the zpool(%s), skip this one"%zpool.name)
+            zpool_unlock.delete()
+            continue
+            #
         # repopulate all
         libcbr.zfs.populate_lzfs()
         #
@@ -626,13 +631,11 @@ class Dolly(object):
                      ,'ch.unige:created_by': DOLLY_PREFIX
                      ,'ch.unige.dolly:zone' : ZONENAME
                      ,'ch.unige:no_snapshots': 'on' # used by other sipt to tell that dolly clone MUST not be snapshoted
-                     ,'ch.unige.dolly:mountpoint' : self.mountpoint}
+                     ,'ch.unige.dolly:mountpoint' : self.mountpoint
+                     ,'readonly':'on'}
             snapshot_name="%s@%s" % (zfs.name, self.snapname)
             libcbr.zfs.clone_zfs(snapshot_name, new_zfsname, doption=doption)
             lzfsname.append(new_zfsname)
-        lzfsname.reverse()
-        for zfsname in lzfsname:
-            libcbr.zfs.set_prop_value('readonly','on',zfsname)
         fun_umount.delete()
         my_logger.info("ended dolly clone_mount")
     def unmount(self):
