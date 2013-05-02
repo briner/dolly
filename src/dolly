@@ -4,7 +4,6 @@
 # dowloaded at https://github.com/briner/dolly
 # all the documentation on https://github.com/briner/dolly/blob/master/dolly/README
 
-# test gitg branche in master branch
 # import
 #
 import os, sys
