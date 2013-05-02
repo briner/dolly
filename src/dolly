@@ -699,6 +699,40 @@ def get_lmap_mountpoint_snap():
     lret=_lmap_mountpoint_snap[:]
     return lret
 
+def diff(mountpoint, from_snapname, to_snapname):
+    lfrom_snap=[]
+    lto_snap=[]
+    for snap in libcbr.zfs.get_lsnapshot():
+#        print mountpoint, snap.duser_prop_value.get('ch.unige.dolly:mountpoint'), snap.name
+        if snap.duser_prop_value.get('ch.unige.dolly:mountpoint')!= mountpoint:
+            continue
+#        print snap.snapname==from_snapname, from_snapname, snap.snapname
+#        print type(snap.snapname), type(from_snapname)
+        if snap.snapname==from_snapname:
+#            print "from", snap.name, snap.duser_prop_value.get('ch.unige.dolly:mountpoint')
+            lfrom_snap.append(snap)
+        elif snap.snapname==to_snapname:
+#            print "to", snap.name, snap.duser_prop_value.get('ch.unige.dolly:mountpoint')
+            lto_snap.append(snap)
+    #
+    # check that both lto_snap and lfrom_snap have the same zfsname
+    lfrom_zfsname=[snap.zfsname for snap in lfrom_snap]
+    lto_zfsname=[snap.zfsname for snap in lto_snap]
+    lfrom_zfsname.sort()
+    lto_zfsname.sort()
+    if lfrom_zfsname != lto_zfsname:
+        print "error we should have the same zfs in from as in to"
+        print "\n".join(lfrom_zfsname)
+        print "\n".join(lto_zfsname)
+        sys.exit()
+    #
+    #
+    for from_snap in lfrom_snap:
+        from_snap_str="%s@%s" % (from_snap.zfsname,from_snapname )
+        to_snap_str="%s@%s" % (from_snap.zfsname,to_snapname )
+        print "zfs diff %s %s" % (from_snap_str, to_snap_str)
+
+
 def populate_ldolly_mnt_n_snap():
     my_logger.debug('refresh zfs.populate_lsnapshot')
     global _ldolly_mnt
@@ -869,13 +903,15 @@ if '__main__' == __name__:
     parser = OptionParser(usage='''
     more info on : http://github.com/briner/dolly
     
-    %%prog clone [<mountpoint_path>] [--snapshot-expiration-datetime=<iso8601>] [--tag=<tagname>]
+    %%prog clone [<mountpoint_path>] [--snapshot-expiration-datetime=<iso8601>]
+                [--tag=<tagname>][--overwrite]
                 [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
                 [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
                 [--zpool-name-incl=<path>,...] [--zpool-name-excl=<path>,...]
                 [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
     %%prog kill [<mountpoint_path>]
-    %%prog destroy-old-snapshot-kept [all|<mountpoint_path>] [--as-we-were-in=<iso8601>]
+    %%prog garbage-collector [all|<mountpoint_path>] [--as-we-were-in=<iso8601>]
+    %%prog diff <mountpoint_path> @<snapname> @<snapname>
     
     Arguments:
       mountpoint_path       the path under which clone will be mounted(default:"%s")
@@ -883,6 +919,9 @@ if '__main__' == __name__:
     ''' % DEFAULT_MOUNTPOINT)
 #    parser.add_option("--mountpoint",                      dest="mountpoint",      default=DEFAULT_MOUNTPOINT
 #                     ,help='under which path the clone is (default:"%s")' % DEFAULT_MOUNTPOINT)
+    # -- clone
+    parser.add_option("--overwrite",                       dest="overwrite",       default=False, action="store_true"
+                     ,help='overwrite a dolly clone by a dolly clone')
     # -- clone or kill
     parser.add_option("--sub-zfs-dir-incl",                dest="subzfsdirincl",   default=SUB_ZFS_DIR_INCL
                      ,help='to include to the clone a subtree of the VFS. the value MUST be a zfs mountpoint,... (default:"%s")' % SUB_ZFS_DIR_INCL)
@@ -917,8 +956,6 @@ if '__main__' == __name__:
                       action="store_false", help='do not send any email')
     parser.add_option("-d", "--debug",   action="store_true",  dest="debug",       default=False
                      ,help='increase the level of debugging')
-    parser.add_option("--overwrite",                       dest="overwrite",       default=False, action="store_true"
-                     ,help='overwrite a dolly clone by a dolly clone')
     parser.add_option("--daemon" ,dest="daemon",   default=False, action="store_true"
                      ,help="become a deamon (usefull with tsm postschedulecmd)")
 
@@ -957,7 +994,7 @@ if '__main__' == __name__:
         # parse the arguments
         #--- mountpoint
         mountpoint=DEFAULT_MOUNTPOINT
-        if len(args) == 2:
+        if len(args) >= 2:
             mountpoint=args[1]
         #--- another_now
         another_now=datetime.now()
@@ -1048,10 +1085,18 @@ if '__main__' == __name__:
                 kill(mountpoint)
             else:
                 kill(mountpoint)
-        elif args[0]=="destroy-old-snapshot-kept":     # destroy-old-snapshot-kept [--mountpoint=<path>]  [--as-we-were-in=<iso8601>]
+        elif (args[0]=="destroy-old-snapshot-kept" )or( args[0]=="garbage-collector"):     # destroy-old-snapshot-kept [--mountpoint=<path>]  [--as-we-were-in=<iso8601>]
             if len(args) > 2:
                 print_help_n_exit()
             dolly_garbage_collector(another_now, mountpoint)
+        elif args[0]=="diff":
+            if len(args) != 4:
+                print_help_n_exit()
+            if( args[2][0]!="@" )or( args[3][0]!="@"):
+                print_help_n_exit()
+            from_snapname=args[2][1:]
+            to_snapname=args[3][1:]
+            diff(mountpoint, from_snapname, to_snapname)
         else:
             print_help_n_exit()
     except SystemExit, inst_system_exit:

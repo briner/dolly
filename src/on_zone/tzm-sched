@@ -404,8 +404,8 @@ post()
     rm ${body_email}
     #
     # disable dsmc-sched
-    echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
-    env SHELL=/bin/bash at 'now + 1minutes' << EOF_AT
+    echo_verbose 'tell "at" to disable dsmc-sched in 10 minute'
+    env SHELL=/bin/bash at 'now + 10minutes' << EOF_AT
 export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
 svcadm disable -s dsmc-sched
 if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
