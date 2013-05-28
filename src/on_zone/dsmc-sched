@@ -3,9 +3,12 @@
 # SMF methods for TSM client
 #
 # Ian Chard <ian.chard@sers.ox.ac.uk>
-#
+# test
 
 . /lib/svc/share/smf_include.sh
+
+LC_ALL=C
+export LC_ALL
 
 if /usr/bin/pgrep -f -x -u 0 -z `/sbin/zonename` "/usr/bin/dsmc sched" >/dev/null 2>&1
 then
