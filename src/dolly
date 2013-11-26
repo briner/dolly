@@ -592,7 +592,7 @@ class Dolly(object):
                 libcbr.zfs.set_prop_value("ch.unige.dolly:do_not_keep", "yes", snap.name)
         #
         #
-        my_logger.info('ended dolly _snap')     
+        my_logger.info('ended dolly _snap')
     def _clone_n_mount(self, snapshot_expiration, lzfs_2_clone, datetimestr_4_snapname_n_clonename):
         my_logger.info("started dolly _clone_mount snapname(%s), mountpoint(%s)" % (self.snapname
                                                                            ,self.mountpoint))
@@ -879,6 +879,12 @@ if '__main__' == __name__:
     
     Arguments:
       mountpoint_path       the path under which clone will be mounted(default:"%s")
+    info:
+       Instead of using the option : --zfs-dir-dont-keep-snapshot in the command
+       line, you can also do it with a:
+       zfs set ch.unige.dolly:do_not_keep=yes <zfs_name>"
+       and remove it, with a:
+       "zfs inherit ch.unige.dolly:do_not_keep
     
     ''' % DEFAULT_MOUNTPOINT)
 #    parser.add_option("--mountpoint",                      dest="mountpoint",      default=DEFAULT_MOUNTPOINT
@@ -921,7 +927,8 @@ if '__main__' == __name__:
                      ,help='overwrite a dolly clone by a dolly clone')
     parser.add_option("--daemon" ,dest="daemon",   default=False, action="store_true"
                      ,help="become a deamon (usefull with tsm postschedulecmd)")
-
+    parser.add_option("--no-cleanup",     default=True, dest="cleanup_error", action="store_false"
+                     ,help="usefull to not clean up dolly mess when debbugging")
     (options, args) = parser.parse_args()
     #
     #
@@ -1061,9 +1068,13 @@ if '__main__' == __name__:
         tb_format_exception=traceback.format_exception(exc_type, exc_value
                                                        ,exc_traceback)
         libcbr.log.logger.is_stdout_enabled=True
-        my_logger.error('started error in dolly, freeing resources:')
-        libcbr.stackfunction.stack_function.terminate_group()
-        my_logger.error('ended error in dolly, freeing resources')
+        my_logger.error("error happend")
+        if options.cleanup_error:
+            my_logger.info("start clean up the mess & freeing the resources")
+            libcbr.stackfunction.stack_function.terminate_group()
+            my_logger.error("end clean up the mess & freeing the resources")
+        else:
+            my_logger.error("the option to not cleanup after an error is raised : do nothing")
         lmsg=[]
         lmsg.append('Error Stack will follow:')
         for line in tb_format_exception:

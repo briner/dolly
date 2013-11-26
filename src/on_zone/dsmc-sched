@@ -3,7 +3,7 @@
 # SMF methods for TSM client
 #
 # Ian Chard <ian.chard@sers.ox.ac.uk>
-# test
+# 
 
 . /lib/svc/share/smf_include.sh
 
