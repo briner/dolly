@@ -614,7 +614,7 @@ class Dolly(object):
             mountpoint=os.path.normpath(mountpoint)
             hash4newzfsname=os.path.basename(self.mountpoint)+'_'+datetimestr_4_snapname_n_clonename
 #            new_zfsname="%s/%s_%s_%s"%(zfs.name, DOLLY_PREFIX, hash4newzfsname, ZONENAME)
-            new_zfsname="rpool/%s_%s_%s_%s"%(DOLLY_PREFIX, zfs.name.replace('/','.'), hash4newzfsname, ZONENAME)
+            new_zfsname="%s/%s_%s_%s_%s"%(zfs.zpool.name, DOLLY_PREFIX, zfs.name.replace('/','.'), hash4newzfsname, ZONENAME)
             new_zfsname=os.path.normpath(new_zfsname)
             new_zfsname=libcbr.path.rstrip_slash(new_zfsname)
             snapshot_expiration_str=datetime2str(snapshot_expiration)
@@ -887,6 +887,8 @@ if '__main__' == __name__:
        "zfs inherit ch.unige.dolly:do_not_keep
     
     ''' % DEFAULT_MOUNTPOINT)
+#TODO:     %%prog destroy-old-snapshot-kept [all|<mountpoint_path>] [--as-we-were-in=<iso8601>] [--snapshot-name=<snapshot-name>]
+
 #    parser.add_option("--mountpoint",                      dest="mountpoint",      default=DEFAULT_MOUNTPOINT
 #                     ,help='under which path the clone is (default:"%s")' % DEFAULT_MOUNTPOINT)
     # -- clone or kill
@@ -917,11 +919,13 @@ if '__main__' == __name__:
                      ,help='the time we will keep the snapshot after the kill of the clone (default:"%s")' % DEFAULT_SNAPSHOT_ISO8601_STR)
     parser.add_option("--as-we-were-in",                   dest="another_now",     default=None
                      ,help='expiration or duration in <iso8601> format. (eg: duration of 5day:"P5D", of 5min:"PT5M", at datetime 2012.09.1975:"1975-08-19" )')
+    parser.add_option("--snapshot-name",                   dest="snapshot_name",    default=None
+                     ,help='(eg: @dolly_mnt::2014.01.30_09:10:21.573478::global::')
     # -- commun
     parser.add_option("-v", "--verbose",                   dest="isverbose",       default=False, action="store_true")
     parser.add_option("--no-email",                        dest="send_email",
                       action="store_false", help='do not send any email')
-    parser.add_option("-d", "--debug",   action="store_true",  dest="debug",       default=False
+    parser.add_option("-d", "--debug", action="store_true",dest="debug",           default=False
                      ,help='increase the level of debugging')
     parser.add_option("--overwrite",                       dest="overwrite",       default=False, action="store_true"
                      ,help='overwrite a dolly clone by a dolly clone')
@@ -1028,7 +1032,7 @@ if '__main__' == __name__:
         lzfs_dontkeepsnapshot=list(set_zfs_dontkeepsnapshot)
         print_debug('__main__', "vvvvvv LZFS DONT KEEP SNAPSHOT vvvvvv")
         print_debug('__main__', " -"+"\n -".join(["%s %s" % (z.name, z.mountpoint) for z in lzfs_dontkeepsnapshot]))
-        print_debug('__main__', "^^^^^^LZFS DONT KEEP SNAPSHOT ^^^^^^")
+        print_debug('__main__', "^^^^^^ LZFS DONT KEEP SNAPSHOT ^^^^^^")
         #--- options tag
         tag=DEFAULT_TAG
         if options.tag:
@@ -1055,10 +1059,11 @@ if '__main__' == __name__:
                 kill(mountpoint)
             else:
                 kill(mountpoint)
-        elif args[0]=="destroy-old-snapshot-kept":     # destroy-old-snapshot-kept [--mountpoint=<path>]  [--as-we-were-in=<iso8601>]
+        elif args[0]=="destroy-old-snapshot-kept": #destroy-old-snapshot-kept [--mountpoint=<path>] [--as-we-were-in=<iso8601>]
+#TODO:      #                                                                 [--snapshot-name=<snapshot-name>
             if len(args) > 2:
                 print_help_n_exit()
-            dolly_garbage_collector(another_now, mountpoint)
+            dolly_garbage_collector(another_now, mountpoint) 
         else:
             print_help_n_exit()
     except SystemExit, inst_system_exit:
@@ -1068,7 +1073,7 @@ if '__main__' == __name__:
         tb_format_exception=traceback.format_exception(exc_type, exc_value
                                                        ,exc_traceback)
         libcbr.log.logger.is_stdout_enabled=True
-        my_logger.error("error happend")
+        my_logger.error("Error happend")
         if options.cleanup_error:
             my_logger.info("start clean up the mess & freeing the resources")
             libcbr.stackfunction.stack_function.terminate_group()
