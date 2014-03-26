@@ -21,7 +21,6 @@ from libcbr.dateutil.relativedelta import relativedelta
 my_logger=logging.getLogger('MyLogger')
 
 
-
 ###############################################################################
 # DEFINITION
 
@@ -234,7 +233,7 @@ def dolly_garbage_collector(now, mountpoint):
             continue
             #
         # repopulate all
-        libcbr.zfs.populate_lzfs()
+        libcbr.zfs.populate_lzfs(for_zpool=zpool)
         #
         # find all the clone that are not mounted and destroy them
         my_logger.info("- find all the clone that are not mounted and destroy them")
@@ -260,7 +259,7 @@ def dolly_garbage_collector(now, mountpoint):
         #
         # find all the snapshot, which are unrelated to a clone and created by dolly
         my_logger.info("- find all the snapshot, which are unrelated to a clone and created by dolly")
-        libcbr.zfs.populate_lzfs()
+        libcbr.zfs.populate_lzfs(for_zpool=zpool)
         lsnap_to_destroy=[]
         lzfs_in_zpool=[zfs for zfs in libcbr.zfs.get_lzfs() if zfs.zpool==zpool]
         # dsnap_lzfs is created for not using zfs.lclone which is time consuming
@@ -763,7 +762,6 @@ def populate_ldolly_mnt_n_snap():
     _lmap_mountpoint_snap=list(set(_lmap_mountpoint_snap))
     #
     _do_populate_ldolly=False
-
 
 def clone(mountpoint, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot
           , tag, overwrite):
