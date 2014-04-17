@@ -147,51 +147,66 @@ write_include_exclude_4_tsm()
         # EXCLUDE fs which are in both origin & clone from the original
         #   -1- take the ZFS belonging to this zonename
         #   -2- keep the one with the same dolly_mounpoint
-        #   -3- remove the snapshots
-        #   -4- keep the one wich are mounted
-        #   -5- find the ZFS they were originated from
-        #   -6- find their mountpoint
-        #   -7- do an exclude.fs for tsm
-        echo "*"
-        echo "* EXCLUDE ZFS which are in both origin & clone from the original"
-        zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
-        | gxargs --no-run-if-empty zfs get -H ch.unige.dolly:mountpoint | ggrep -P "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
-        | grep -v "@"  \
-        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
-        | gxargs --no-run-if-empty zfs get -H origin | cut -f3 | cut -d "@" -f1 \
-        | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3 \
-        | gsed 's|\(.*\)|exclude.fs \1|'
-        #
-        # EXCLUDE fs which are in other "dolly clone" in the same zonename
-        #   -1- take the ZFS belonging to this zonename
-        #   -2- remove the one with the same dolly_mounpoint
-        #   -3- remove the snapshots
-        #   -4- keep the one wich are mounted
+        #   -3- keep the one wich are mounted
+        #   -4- find the ZFS they were originated from
         #   -5- find their mountpoint
         #   -6- do an exclude.fs for tsm
         echo "*"
-        echo "* EXCLUDE ZFS which are in other \"dolly clone\" in the same zonename"
-        zfs get -H ch.unige.dolly:zone | ggrep -P "\t$(zonename)\t" | cut -f1 \
-        | gxargs --no-run-if-empty zfs get -H "ch.unige.dolly:mountpoint" | ggrep -Pv "\t${DOLLY_MOUNTPOINT}\t" | cut -f1 \
-        | grep -v "@" \
-        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
-        | gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
-        | gsed 's|\(.*\)|exclude.fs \1|'
-        #
-        # EXCLUDE fs which are in other zone
-        #   -1- take the ZFS which are zoned
-        #   -2- remove the snapshots
+        echo "* EXCLUDE ZFS which are in both origin & clone from the original"
+        zfs list -H -o name,ch.unige.dolly:zone | ggrep -P "\t$(zonename)" | cut -f1 \
+        | gxargs --no-run-if-empty zfs list -H -o name,ch.unige.dolly:mountpoint | ggrep -P "\t${DOLLY_MOUNTPOINT}" | cut -f1 \
+        | gxargs --no-run-if-empty zfs list -H -o name,mounted | ggrep -P "\tyes" | cut -f1 \
+        | gxargs --no-run-if-empty zfs list -H -o origin | cut -d "@" -f1 \
+        | gxargs --no-run-if-empty zfs list -H -o mountpoint \
+        | gsed 's|\(.*\)|exclude.fs \1|' \
+        | sort
+        # EXCLUDE fs which are in other "dolly clone" in the same zonename
+        #   -1- take the ZFS belonging to this zonename
+        #   -2- remove the one with the same dolly_mounpoint
         #   -3- keep the one wich are mounted
         #   -4- find their mountpoint
         #   -5- do an exclude.fs for tsm
         echo "*"
+        echo "* EXCLUDE ZFS which are in other \"dolly clone\" in the same zonename"
+        zfs list -H -o name,ch.unige.dolly:zone | ggrep -P "\t$(zonename)" | cut -f1 \
+        | gxargs --no-run-if-empty zfs list -H -o name,ch.unige.dolly:mountpoint | ggrep -Pv "\t${DOLLY_MOUNTPOINT}" | cut -f1 \
+        | gxargs --no-run-if-empty zfs list -H -o name,mounted | ggrep -P "\tyes" | cut -f1 \
+        | gxargs --no-run-if-empty zfs list -H -o mountpoint \
+        | gsed 's|\(.*\)|exclude.fs \1|' \
+        | sort
+        #
+        # EXCLUDE fs which are in other zone
+        #   -1- take the ZFS which are zoned
+        #   -2- keep the one wich are mounted
+        #   -3- find their mountpoint
+        #   -4- do an exclude.fs for tsm
+        echo "*"
         echo "* EXCLUDE ZFS which are in other zone"
         if test "$(zonename)" == "global" ; then
-            zfs get -H zoned | ggrep -P "\ton\t" | cut -f1 \
-            | grep -v "@"  \
-            | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
-            | gxargs --no-run-if-empty  zfs get -H mountpoint | cut -f3 \
+            zfs list -H -o name,zoned | ggrep -P "\ton" | cut -f1 \
+            | gxargs --no-run-if-empty zfs list -H -o name,mounted | ggrep -P "\tyes" | cut -f1 \
+            | gxargs --no-run-if-empty zfs list -H -o mountpoint \
             | gsed 's|\(.*\)|exclude.fs \1|'
+        fi
+        #
+        # EXCLUDE fs which are in other zone
+        #   -1- take the ZFS which are zoned
+        #   -2- keep the one wich are mounted
+        #   -3- find their mountpoint
+        #   -4- add a transform mountpoint and add a dolly based on zonepath
+        #   -5- do an exclude.fs for tsm
+        echo "*"
+        echo "* EXCLUDE ZFS which are in other zone and dollyed"
+        if test "$(zonename)" == "global" ; then
+            zfs list -H -o name,zoned | ggrep -P "\ton" | cut -f1 \
+            | gxargs --no-run-if-empty zfs list -H -o name,mounted | ggrep -P "\tyes" | cut -f1 \
+            | gxargs --no-run-if-empty zfs list -H -o mountpoint \
+            | gsed -f <( zoneadm list -cv | gsed "s|\t| |" \
+                        | gsed 's/  \+/ /g'| gsed "s|^ ||" \
+                        | cut -d " " -f4  \
+                        | ggrep -vE '^PATH$|^/$' \
+                        | xargs -I@ echo "s|^@/root|@/root${DOLLY_MOUNTPOINT}|") \
+           | gsed 's|\(.*\)|exclude.fs \1|'
         fi
         #
         # EXCLUDE system/volatile
@@ -404,8 +419,8 @@ post()
     rm ${body_email}
     #
     # disable dsmc-sched
-    echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
-    env SHELL=/bin/bash at 'now + 1minutes' << EOF_AT
+    echo_verbose 'tell "at" to disable dsmc-sched in 10 minutes'
+    env SHELL=/bin/bash at 'now + 10minutes' << EOF_AT
 export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
 svcadm disable -s dsmc-sched
 if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
