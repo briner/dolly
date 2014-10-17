@@ -119,14 +119,20 @@ write_metadata4archive()
 #    #
 #    zfs list -H -t filesystem -r -o mountpoint | ggrep "^/" \
 #    | ggrep -vf /tmp/tzm-sched/exclude-mountpoint-re > /tmp/tzm-sched/include-mountpoint
-    for mnt4copy in $(zfs get -H ch.unige.dolly:zone \
-        | gawk '{if ( $3 == "-" ){ print $1} }' \
-        | grep -v "@" \
-        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
-        | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3) ; do
+    for mnt4copy in $( zfs get -H ch.unige.dolly:zone \
+                       | gawk '{if ( $3 == "-" ){ print $1} }' \
+                       | grep -v "@" \
+                       | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+                       | if test "$(zonename)" == "global"
+                         then
+                             gxargs --no-run-if-empty zfs get -H zoned | ggrep -Pv "\ton\t" | cut -f1
+                         else
+                             cat -
+                         fi \
+                       | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3 \
+                     ) ; do
         cp /tmp/tzm-sched/metadata4archive.tgz ${mnt4copy}/.metadata4archive.tgz | :
     done
-
 }
 
 
@@ -419,8 +425,8 @@ post()
     rm ${body_email}
     #
     # disable dsmc-sched
-    echo_verbose 'tell "at" to disable dsmc-sched in 10 minutes'
-    env SHELL=/bin/bash at 'now + 10minutes' << EOF_AT
+    echo_verbose 'tell "at" to disable dsmc-sched in 1 minute'
+    env SHELL=/bin/bash at 'now + 1minutes' << EOF_AT
 export PATH="/usr/bin:/usr/sbin:/usr/local/bin"
 svcadm disable -s dsmc-sched
 if ! svcs -H dsmc-sched:default | ggrep -q '^disabled ' ; then
