@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# 2015.06.18 Cédric BRINER: do not write metadata on a readonly ZFS
 # 2013.01.30 Cédric Briner: add function : stdout_n_stderr_2_log
 
 #set  -e ; # errexit	Abort script at first error, when a command exits with
@@ -126,6 +127,7 @@ write_metadata4archive()
 #    | ggrep -vf /tmp/tzm-sched/exclude-mountpoint-re > /tmp/tzm-sched/include-mountpoint
     for mnt4copy in $( zfs list -H -t filesystem -o name,ch.unige.dolly:zone | ggrep -P -P "\t-" | cut -f1 \
                        | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
+                       | gxargs --no-run-if-empty zfs get -H readonly | ggrep -P "\toff\t" | cut -f1 \
                        | if test "$(zonename)" == "global"
                          then
                              gxargs --no-run-if-empty zfs get -H zoned | ggrep -Pv "\ton\t" | cut -f1
