@@ -4,8 +4,6 @@ TODO:
 -dolly: modify the way include or exclude works, so that the include/exclude take in
 account the order of the argument in the command line
 
--tzm-sched: the crontab send a better subject name instead of a
-  'Output from "cron" command'
 
 - stop sending messages for this error
 ANS1228E Sending of object '/system/volatile/unige_zfs_rpool.lock' failed
@@ -22,6 +20,10 @@ ANS1802E Incremental backup of '/system/volatile' finished with 1 failure
 - clean /dolly/backup.lock and /dolly/backup
 
 DONE
+2015-10
+tzm-sched: the crontab send a better subject name instead of a
+  'Output from "cron" command'
+
 2012-11
 dolly: put the mountpoint option as an argument so that :
     dolly clone [<mountpoint_path>]
