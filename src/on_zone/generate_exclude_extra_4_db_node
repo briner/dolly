@@ -13,10 +13,11 @@ shopt -s extglob
 EMAIL_DEST="unix-bot@unige.ch,dba-dinf@unige.ch"
 
 EXCLUDE_PATH_GENERATED=/opt/tivoli/tsm/client/ba/bin/exclude_extra_4_db_node
-ZFS_MOUNTPOINT_NO_DOLLY_PATH=/var/cache/mountpoint_nodolly
+ZFS_MOUNTPOINT_NO_DOLLY_PATH=/var/run/mountpoint_nodolly
 #
 # is there some new ZFS to take in account
-tmp_mountpoint_nodolly=$(mktemp -p /tmp $(basename ${ZFS_MOUNTPOINT_NO_DOLLY_PATH}).XXXXXX)
+tmp_mountpoint_nodolly=$(mktemp -p /tmp $(basename ${ZFS_MOUNTPOINT_NO_DOLLY_PATH})-4-cron-generate_exclude_extra_4_db_node.XXXXXX)
+tmp_gdiff=$(mktemp -p /tmp gdiff-4-cron-generate_exclude_extra_4_db_node.XXXXXX)
 #
 #   -1- take the ZFS not created by dolly
 #   -2- remove the snapshots
@@ -27,14 +28,17 @@ zfs get -H ch.unige:created_by | ggrep -vP "\tdolly\t" | cut -f1 \
  | gxargs --no-run-if-empty zfs get -H mounted | ggrep -P "\tyes\t" | cut -f1 \
  | gxargs --no-run-if-empty zfs get -H mountpoint | cut -f3 >  ${tmp_mountpoint_nodolly}
 
-if ! gdiff -q  ${tmp_mountpoint_nodolly} ${ZFS_MOUNTPOINT_NO_DOLLY_PATH} > /dev/null 2>&1 ; then
+if ! gdiff ${ZFS_MOUNTPOINT_NO_DOLLY_PATH} ${tmp_mountpoint_nodolly} > ${tmp_gdiff} 2>&1
+then
     #
     # rotate mountpoint_nodolly and push the new one 
-    logadm  -f /dev/null -N ${ZFS_MOUNTPOINT_NO_DOLLY_PATH}
+    mv ${ZFS_MOUNTPOINT_NO_DOLLY_PATH} ${ZFS_MOUNTPOINT_NO_DOLLY_PATH}.$(date "+%Y.%m.%d_%H:%M:%S")
+    for f in $(ls -rt1 ${ZFS_MOUNTPOINT_NO_DOLLY_PATH}.* |gtail +10) ; do rm $f ; done
     mv ${tmp_mountpoint_nodolly} ${ZFS_MOUNTPOINT_NO_DOLLY_PATH}
     #
     # rotate the exclude_dolly and generate the new one
-    logadm  -f /dev/null -N ${EXCLUDE_PATH_GENERATED}
+    mv ${EXCLUDE_PATH_GENERATED} ${EXCLUDE_PATH_GENERATED}.$(date "+%Y.%m.%d_%H:%M:%S")
+    for f in $(ls -rt1 ${EXCLUDE_PATH_GENERATED}.*  |gtail +10); do rm $f ; done
     {
         echo "*"
         echo "* exclude the mountpoint in /oracle except the /oracle/app"
@@ -50,12 +54,19 @@ if ! gdiff -q  ${tmp_mountpoint_nodolly} ${ZFS_MOUNTPOINT_NO_DOLLY_PATH} > /dev/
     } > ${EXCLUDE_PATH_GENERATED}
     #
     # send messages
-    mailx -s "[$(hostname| cut -d '.' -f1)] $(basename $0): zfs list as changed" $EMAIL_DEST <<EOF
+    tmp_mail=$(mktemp -p /tmp mail-4-cron-generate_exclude_extra_4_db_node.XXXXXX)
+    cat << EOF > ${tmp_mail}
 zfs list as changed, so we have to reflect the change on how the backup is
 configured.
 
 We've created the new ${EXCLUDE_PATH_GENERATED} which is somehow included in a dsm.sys
+
+output of the gdiff ${ZFS_MOUNTPOINT_NO_DOLLY_PATH} ${tmp_mountpoint_nodolly}
 EOF
+    cat ${tmp_gdiff} >> ${tmp_mail}
+    cat ${tmp_mail} | gsed "s|^|  |" | mailx -s "[$(hostname| cut -d '.' -f1)] $(basename $0): zfs list as changed" $EMAIL_DEST
+    rm ${tmp_mail}
 else
     rm ${tmp_mountpoint_nodolly}
 fi
+rm ${tmp_gdiff}
