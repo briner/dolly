@@ -16,8 +16,8 @@
  ***** uncomment the line under this line by removing one "*" to bring them active ******
 *SErvername      <nodename>
 *    COMMMethod          TCPip
-*    TCPPort             1506
-*    TCPServeraddress    sos6.unige.ch
+*    TCPPort             1508
+*    TCPServeraddress    sos8.unige.ch
 *    NODENAME            <nodename>
 *    PASSWORDACCESS      generate
 *    MAXCMDRETRIES       6
