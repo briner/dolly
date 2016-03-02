@@ -20,6 +20,10 @@ ANS1802E Incremental backup of '/system/volatile' finished with 1 failure
 - clean /dolly/backup.lock and /dolly/backup
 
 DONE
+2016-03
+added the option --snapname to the subcommand destroy-old-snapshot-kept which allow to destroy
+a specific snapname
+
 2015-10
 tzm-sched: the crontab send a better subject name instead of a
   'Output from "cron" command'

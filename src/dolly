@@ -39,7 +39,7 @@ def print_debug(*args):
         print name+' '+' '.join(args)
 
 #
-# definition GARBAGE 
+# definition GARBAGE
 MAX_NUMBER_ZOMBIE=5
 MAX_AGE_ZOMBIE_STR="P3D"
 
@@ -77,7 +77,7 @@ DOLLY_PREFIX='dolly'
 RE_IS_A_DOLLY_ZFS=re.compile('/dolly_[^/]+$')
 SNAPNAME_FORMAT=DOLLY_PREFIX+'_mnt::%(datetime)s::%(zonename)s::%(tag)s'
 def is_a_dolly_zfs(zfs):
-    return bool(RE_IS_A_DOLLY_ZFS.search(zfs.name))  
+    return bool(RE_IS_A_DOLLY_ZFS.search(zfs.name))
 #
 # definition DATETIME
 DATETIME_FORMAT='%Y.%m.%d_%H:%M:%S.%f'
@@ -213,7 +213,7 @@ def destroy_dolly_zfs(zfs, max_number_of_try=4):
         my_logger.info("able to destroy zfs(%s) (by retrying %d times)" % (zfs.name, try_counter))
     return True
 
-def dolly_garbage_collector(now, mountpoint):
+def dolly_garbage_collector(mountpoint, now=None, snapname=None):
     my_logger.info('started dolly_garbage_collector')
     my_logger.debug('dolly_garbage_collector on lzpool(%s)' % ','.join([zpool.name for zpool in libcbr.zfs.get_lzpool()]))
     lzfs_zombie=[]
@@ -223,7 +223,7 @@ def dolly_garbage_collector(now, mountpoint):
         #
         # lock on zpool
         zpool_unlock=libcbr.stackfunction.stack_function.add(
-            zpool.unlock_it,                                                      
+            zpool.unlock_it,
             title="unlock file'semaphore of zpool(%s)" % zpool.name)
         try:
             zpool.lock_it()
@@ -276,16 +276,21 @@ def dolly_garbage_collector(now, mountpoint):
             if dsnap_lzfs.get(snap):
                 lclonename=[clone.name for clone in dsnap_lzfs.get(snap)]
                 print_debug('dolly_garbage_collector', 'snap(%s) have clone(%s): skip it' % (snap.name, ','.join(lclonename)))
-                continue 
+                continue
             # not created by dolly
             if snap.duser_prop_value.get('ch.unige:created_by')!=DOLLY_PREFIX :
                 print_debug('dolly_garbage_collector', "snap(%s) isn't related to dolly: skip it" % snap.name )
                 continue
+            # if snapname
+            if snapname:
+                if snapname != snap.snapname:
+                    print_debug('dolly_garbage_collector', "snap(%s) does not have a good snapname(%s != %s): skip it" % (snap.name, snapname, snap.snapname) )
+                    continue
             # not belonging to this mountpoint
             if mountpoint != "all":
                 snap_mnt=snap.duser_prop_value['ch.unige.dolly:mountpoint']
-                if snap_mnt!=mountpoint:
-                    print_debug('dolly_garbage_collector', "snap(%s) isn't related to the good mountpoint(%s = %s ): skip it" % (snap.name, snap_mnt, mountpoint ) )
+                if snap_mnt != mountpoint:
+                    print_debug('dolly_garbage_collector', "snap(%s) isn't related to the good mountpoint(%s != %s ): skip it" % (snap.name, snap_mnt, mountpoint ) )
                     continue
             # not belonging to this zone
             ZONENAME
@@ -296,27 +301,28 @@ def dolly_garbage_collector(now, mountpoint):
                 continue
             # remove the unwanted
             if snap.duser_prop_value['ch.unige.dolly:do_not_keep'] == "yes":
-                lsnap_to_destroy.append(snap)              
+                lsnap_to_destroy.append(snap)
             # not correct expiration
-            expiration_str=snap.duser_prop_value['ch.unige:expiration_datetime']
-            expiration_datetime=None
-            try:
-                expiration_datetime=str2datetime(expiration_str)
-            except:
-                pass
-            if not expiration_datetime:
-                expiration_repr=repr(snap.duser_prop_value['ch.unige:expiration_datetime'])
+            if now:
+                expiration_str=snap.duser_prop_value['ch.unige:expiration_datetime']
+                expiration_datetime=None
+                try:
+                    expiration_datetime=str2datetime(expiration_str)
+                except:
+                    pass
+                if not expiration_datetime:
+                    expiration_repr=repr(snap.duser_prop_value['ch.unige:expiration_datetime'])
+                    print_debug('dolly_garbage_collector'
+                                ,"snap(%s) does not have a valid expiration(%s): skip it" % (snap.name, expiration_repr))
+                    continue
+                # not expired yet
+                now_str=datetime2str(now)
+                if now < expiration_datetime:
+                    print_debug('dolly_garbage_collector'
+                                ,"snap(%s) has not expired(now:%s < exp:%s) yet: skip it" % (snap.name, now_str, expiration_str))
+                    continue
                 print_debug('dolly_garbage_collector'
-                            ,"snap(%s) does not have a valid expiration(%s): skip it" % (snap.name, expiration_repr))
-                continue
-            # not expired yet
-            now_str=datetime2str(now)
-            if now < expiration_datetime:
-                print_debug('dolly_garbage_collector'
-                            ,"snap(%s) has not expired(now:%s < exp:%s) yet: skip it" % (snap.name, now_str, expiration_str))
-                continue
-            print_debug('dolly_garbage_collector'
-                       ,"snap(%s) has expired(now:%s > exp:%s) yet: add it" % (snap.name, now_str, expiration_str))
+                           ,"snap(%s) has expired(now:%s > exp:%s) yet: add it" % (snap.name, now_str, expiration_str))
             lsnap_to_destroy.append(snap)
         # destroy them
         for snap in lsnap_to_destroy:
@@ -390,7 +396,7 @@ class Dolly(object):
         if self.state=='mounting':
             if os.path.isdir(self.mountpoint):
                 self.lock=None
-                raise DollyErrorAlreadyMounted       
+                raise DollyErrorAlreadyMounted
         libcbr.stackfunction.stack_function.add(self._release_lock
                                                ,title='release lock for mountpoint(%s)' % self.mountpoint)
     def _release_lock(self):
@@ -510,7 +516,7 @@ class Dolly(object):
         #
         # snapshot
         self._snap(snapshot_expiration, lzfs_2_clone, lzfs_dontkeepsnapshot)
-        # clone & mount 
+        # clone & mount
         my_logger.debug('clone  & mount dolly')
         self._clone_n_mount(snapshot_expiration, lzfs_2_clone, datetimestr_4_snapname_n_clonename)
         #
@@ -627,11 +633,11 @@ class Dolly(object):
             #
             #mount also the clonelzfs_dontkeepsnapshot
             doption={'mountpoint':mountpoint
-                     ,'ch.unige:created_by': DOLLY_PREFIX
-                     ,'ch.unige.dolly:zone' : ZONENAME
-                     ,'ch.unige:no_snapshots': 'on' # used by other sipt to tell that dolly clone MUST not be snapshoted
-                     ,'ch.unige.dolly:mountpoint' : self.mountpoint
-                     ,'readonly':'on'}
+                    ,'ch.unige:created_by': DOLLY_PREFIX
+                    ,'ch.unige.dolly:zone' : ZONENAME
+                    ,'ch.unige:no_snapshots': 'on' # used by other script to tell that dolly clone MUST not be snapshoted
+                    ,'ch.unige.dolly:mountpoint' : self.mountpoint
+                    ,'readonly':'on'}
             snapshot_name="%s@%s" % (zfs.name, self.snapname)
             libcbr.zfs.clone_zfs(snapshot_name, new_zfsname, doption=doption)
             lzfsname.append(new_zfsname)
@@ -685,14 +691,14 @@ _ldolly_mnt=[]
 _lmap_mountpoint_snap=[]
 _do_populate_ldolly=True
 def get_ldolly_mnt():
-    #        
+    #
     if _do_populate_ldolly==True:
         populate_ldolly_mnt_n_snap()
     lret=_ldolly_mnt[:]
     return lret
 
 def get_lmap_mountpoint_snap():
-    #        
+    #
     if _do_populate_ldolly==True:
         populate_ldolly_mnt_n_snap()
     lret=_lmap_mountpoint_snap[:]
@@ -751,7 +757,7 @@ def populate_ldolly_mnt_n_snap():
         if not dolly_mountpoint:
             print_debug('populate_ldolly', 'snap: snap(%s) as not a "ch.unige.dolly:mountpoint" : skip it' % snap.name)
             continue
-        if dsnap_lzfs.get(snap): 
+        if dsnap_lzfs.get(snap):
             print_debug('populate_ldolly', 'snap: snap(%s) a clone depending on it : skip it' % snap.name)
             continue
         if is_on_a_zone_when_in_globalzone(snap.zfs):
@@ -774,7 +780,8 @@ def clone(mountpoint, lzfs_2_clone, snapshot_expiration, lzfs_dontkeepsnapshot
             dolly.unmount()
     #
     dolly_clean=libcbr.stackfunction.stack_function.add(dolly_garbage_collector
-                                                       ,args= (datetime.now(), mountpoint)                                      
+                                                       ,args= [mountpoint]
+                                                       ,kw= {"now":datetime.now()}
                                                        ,title="dolly_garbage_collector")
     Dolly.create_from_demand(mountpoint, lzfs_2_clone
                             ,snapshot_expiration, lzfs_dontkeepsnapshot
@@ -792,7 +799,8 @@ def kill(mountpoint):
         print msg
         sys.exit(2)
     dolly_clean=libcbr.stackfunction.stack_function.add(dolly_garbage_collector
-                                                       ,args= (datetime.now(), mountpoint)                                      
+                                                       ,args= [mountpoint]
+                                                       ,kw= {"now":datetime.now()}
                                                        ,title="dolly_garbage_collector")
     dolly.unmount()
     dolly_clean()
@@ -866,15 +874,15 @@ if '__main__' == __name__:
     from optparse import OptionParser
     parser = OptionParser(usage='''
     more info on : http://github.com/briner/dolly
-    
+
     %%prog clone [<mountpoint_path>] [--snapshot-expiration-datetime=<iso8601>] [--tag=<tagname>]
                  [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
                  [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
                  [--zpool-name-incl=<path>,...] [--zpool-name-excl=<path>,...]
                  [--zfs-dir-dont-keep-snapshot=<path>,...] [--sub-zfs-dir-dont-keep-snapshot=<path>,...]
     %%prog kill  [<mountpoint_path>]
-    %%prog destroy-old-snapshot-kept [all|<mountpoint_path>] [--as-we-were-in=<iso8601>]
-    
+    %%prog destroy-old-snapshot-kept [all|<mountpoint_path>] [ [--as-we-were-in=<iso8601>] | [--snapname=@<snapname>] ]
+
     Arguments:
       mountpoint_path       the path under which clone will be mounted(default:"%s")
     info:
@@ -883,7 +891,7 @@ if '__main__' == __name__:
        zfs set ch.unige.dolly:do_not_keep=yes <zfs_name>"
        and remove it, with a:
        "zfs inherit ch.unige.dolly:do_not_keep
-    
+
     ''' % DEFAULT_MOUNTPOINT)
 #TODO:     %%prog destroy-old-snapshot-kept [all|<mountpoint_path>] [--as-we-were-in=<iso8601>] [--snapshot-name=<snapshot-name>]
 
@@ -917,14 +925,14 @@ if '__main__' == __name__:
                      ,help='the time we will keep the snapshot after the kill of the clone (default:"%s")' % DEFAULT_SNAPSHOT_ISO8601_STR)
     parser.add_option("--as-we-were-in",                   dest="another_now",     default=None
                      ,help='expiration or duration in <iso8601> format. (eg: duration of 5day:"P5D", of 5min:"PT5M", at datetime 2012.09.1975:"1975-08-19" )')
-    parser.add_option("--snapshot-name",                   dest="snapshot_name",    default=None
+    parser.add_option("--snapname",                   dest="snapname",    default=None
                      ,help='(eg: @dolly_mnt::2014.01.30_09:10:21.573478::global::')
     # -- commun
     parser.add_option("-v", "--verbose",                   dest="isverbose",       default=False, action="store_true")
     parser.add_option("--no-email",                        dest="send_email",
                       action="store_false", help='do not send any email')
     parser.add_option("-d", "--debug", action="store_true",dest="debug",           default=False
-                     ,help='increase the level of debugging')
+                     ,help='increase the level of debugging'),
     parser.add_option("--overwrite",                       dest="overwrite",       default=False, action="store_true"
                      ,help='overwrite a dolly clone by a dolly clone')
     parser.add_option("--daemon" ,dest="daemon",   default=False, action="store_true"
@@ -938,7 +946,7 @@ if '__main__' == __name__:
         parser.print_help()
         if msg:
             print ''
-            print msg 
+            print msg
         sys.exit(1)
     #
     #
@@ -968,6 +976,10 @@ if '__main__' == __name__:
         mountpoint=DEFAULT_MOUNTPOINT
         if len(args) == 2:
             mountpoint=args[1]
+        snapname=None
+        if options.snapname:
+            # remove the "@" at the beginning
+            snapname=options.snapname[1:]
         #--- another_now
         another_now=datetime.now()
         if options.another_now:
@@ -975,7 +987,7 @@ if '__main__' == __name__:
             if isinstance(datetime_or_duration, relativedelta):
                 another_now=datetime.now()+datetime_or_duration
             if isinstance(datetime_or_duration, datetime):
-                another_now=datetime_or_duration            
+                another_now=datetime_or_duration
             if another_now < datetime.now():
                 print_help_n_exit('--as-we-were-in can not point to the past')
         #--- snapshot_expiration
@@ -984,12 +996,12 @@ if '__main__' == __name__:
         if isinstance(expiration_or_duration, relativedelta):
             snapshot_expiration=datetime.now()+expiration_or_duration
         if isinstance(expiration_or_duration, datetime):
-            snapshot_expiration=expiration_or_duration            
+            snapshot_expiration=expiration_or_duration
         if snapshot_expiration < datetime.now():
             print_help_n_exit('--snapshot-expiration-datetime(%s) can not point to the past' % options.expiration_str)
         if not snapshot_expiration:
             print_help_n_exit('--snapshot-expiration-datetime error')
-        #--- list of zfs     
+        #--- list of zfs
         lzfspath_error=[]
         lzpoolname_error=[]
         lzfsincl,    lzfspath_error = lzfs_path_2_lzfs(options.zfsdirincl,    lzfspath_error)
@@ -1057,11 +1069,16 @@ if '__main__' == __name__:
                 kill(mountpoint)
             else:
                 kill(mountpoint)
-        elif args[0]=="destroy-old-snapshot-kept": #destroy-old-snapshot-kept [--mountpoint=<path>] [--as-we-were-in=<iso8601>]
-#TODO:      #                                                                 [--snapshot-name=<snapshot-name>
+        elif args[0]=="destroy-old-snapshot-kept":
+            if snapname:
+                another_now=None
+                if options.another_now:
+                    print "options --snapname and --as-we-were-in can not be used at the same time "
+                    print ""
+                    print_help_n_exit()
             if len(args) > 2:
                 print_help_n_exit()
-            dolly_garbage_collector(another_now, mountpoint) 
+            dolly_garbage_collector(mountpoint, now=another_now, snapname=snapname)
         else:
             print_help_n_exit()
     except SystemExit, inst_system_exit:
