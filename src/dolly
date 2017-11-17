@@ -970,6 +970,7 @@ if '__main__' == __name__:
             is_verbose=True
         libcbr.log.logger.enable_it(is_verbose, must_debug, LOG_FILENAME)
         my_logger.info('DOLLY START IN THE _MAIN_ PLACE')
+        my_logger.info("cmd: %s" % " ".join(sys.argv[:]) )
         #
         # parse the arguments
         #--- mountpoint
