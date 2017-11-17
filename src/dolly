@@ -875,6 +875,7 @@ if '__main__' == __name__:
     parser = OptionParser(usage='''
     more info on : http://github.com/briner/dolly
 
+    %%prog [list]
     %%prog clone [<mountpoint_path>] [--snapshot-expiration-datetime=<iso8601>] [--tag=<tagname>]
                  [--zfs-dir-incl=<path>,...] [--zfs-dir-excl=<path>,...]
                  [--sub-zfs-dir-incl=<path>,...] [--sub-zfs-dir-excl=<path>,...]
@@ -1055,6 +1056,8 @@ if '__main__' == __name__:
         #
         # launcher
         if len(args)==0:
+            list_dolly()
+        elif args[0] == "list":
             list_dolly()
         elif args[0]=="clone":          # dolly create  [--mountpoint=<path>]
             if (options.another_now) or (len(args) >2):
